@@ -356,18 +356,21 @@ def generate_gcode(
     # Горизонталь (линии снизу вверх, шаг 2 мм; в зоне букв — сегменты)
     y = raft_y0
     while y < raft_y1:
+        # в зоне букв линии идут с шагом 1 мм, чтобы вырезать каждую строку точек
+        step = 1 if text_y - 1 <= y < text_y + 7 else 2
+        inc = ev_increase if step == 2 else ev_increase / 2
         row_gaps = [(g[0], g[1]) for g in text_gaps if g[2] <= y < g[3]]
         if row_gaps:
             segs = _split_line(raft_x0, raft_x1, row_gaps)
             for i, (sx0, sx1) in enumerate(segs):
                 lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(sx1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-                ev = ev + ev_increase
+                ev = ev + inc
                 if i < len(segs) - 1:
                     lines.append(f"G0 F{int(ts) * 60} X{_fmt(segs[i + 1][0], 2)} Y{_fmt(y, 2)}")
         else:
             lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-            ev = ev + ev_increase
-        y = y + 2
+            ev = ev + inc
+        y = y + step
         if y < raft_y1:
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
     # Возврат к началу рафта на высоту 2-го слоя
@@ -377,18 +380,21 @@ def generate_gcode(
     # Вертикаль (линии слева направо, шаг 2 мм; в зоне букв — сегменты)
     x = raft_x0
     while x < raft_x1:
+        # в зоне букв линии идут с шагом 1 мм, чтобы вырезать каждую колонку точек
+        step = 1 if text_x - 1 <= x < text_x + len(FRONT_LABEL) * 6 else 2
+        inc = ev_increase if step == 2 else ev_increase / 2
         col_gaps = [(g[2], g[3]) for g in text_gaps if g[0] <= x < g[1]]
         if col_gaps:
             segs = _split_line(raft_y0, raft_y1, col_gaps)
             for i, (sy0, sy1) in enumerate(segs):
                 lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(sy1, 2)} E{_fmt(ev, 5)}")
-                ev = ev + ev_increase
+                ev = ev + inc
                 if i < len(segs) - 1:
                     lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(segs[i + 1][0], 2)}")
         else:
             lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
-            ev = ev + ev_increase
-        x = x + 2
+            ev = ev + inc
+        x = x + step
         if x < raft_x1:
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
     # Переход к стартовой позиции калибровки (слой 3)
