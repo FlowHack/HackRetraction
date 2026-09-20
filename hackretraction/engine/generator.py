@@ -368,6 +368,8 @@ def generate_gcode(
             lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
             ev = ev + ev_increase
         y = y + 2
+        if y < raft_y1:
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
     # Возврат к началу рафта на высоту 2-го слоя
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
 
@@ -387,6 +389,8 @@ def generate_gcode(
             lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
             ev = ev + ev_increase
         x = x + 2
+        if x < raft_x1:
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
     # Переход к стартовой позиции калибровки (слой 3)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
 
