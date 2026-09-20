@@ -32,7 +32,8 @@ Install from the OrcaCloud subscription page:
 ## Usage
 
 1. Open the Plugins dialog: **File → Plugins**.
-2. Find **HackRetraction** in the list and expand it.
-3. Click **Run** — the generator window opens.
+2. Tick the checkbox to the left of **HackRetraction** to activate it.
+3. Expand the plugin by clicking the arrow in its row.
+4. Click the launch button on the right — the generator window opens.
 
 Set the parameters (or click "Pull from profile"), press **Generate**, then **Copy** or enter a path and press **Save**.
