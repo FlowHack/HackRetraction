@@ -6,7 +6,7 @@ _on_<type>. Ответы отправляются через _post (sink, уст
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..errors import ExportError, ProfileError
 from ..i18n import I18N_COMMENTS
@@ -14,6 +14,13 @@ from ..logging import _LOGGER
 from .export import ExportMixin
 from .generator import generate_gcode
 from .params import ParamsMixin, parse_gcode
+
+# Инкрементальные шаги: одновременно ненулевым может быть только один.
+_STEP_KEYS: tuple[str, ...] = (
+    "incrementRetractionspeed",
+    "tempIncrementhotend",
+    "speedFanIncrement",
+)
 
 
 class HandlersMixin(ParamsMixin, ExportMixin):
@@ -49,6 +56,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
 
     def _on_generate(self, message: Dict[str, Any]) -> None:
         params = self._resolve_params_for_gen(message.get("params"))
+        step_error = self._validate_steps(params)
+        if step_error is not None:
+            self._post({"type": "status", "key": step_error[0], "params": step_error[1]})
+            return
         start, end = self.resolved_start_end(params)
         comments = I18N_COMMENTS.get(self.comment_lang)
         gcode = generate_gcode(params, start, end, comments)
@@ -64,6 +75,21 @@ class HandlersMixin(ParamsMixin, ExportMixin):
                 },
             }
         )
+
+    def _validate_steps(
+        self, params: Dict[str, Any]
+    ) -> Optional[tuple[str, Dict[str, str]]]:
+        """Проверка шагов перед генерацией: ровно один ненулевой из трёх.
+
+        Возвращает (ключ статуса, параметры подстановки) при ошибке или None.
+        """
+        non_zero = [key for key in _STEP_KEYS if float(params.get(key, 0) or 0) != 0]
+        if len(non_zero) > 1:
+            names = ", ".join(self._t("p." + key) for key in non_zero)
+            return "status.step_multiple", {"params": names}
+        if not non_zero:
+            return "status.step_none", {}
+        return None
 
     # --- Экспорт ---
 

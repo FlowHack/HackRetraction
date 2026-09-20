@@ -217,6 +217,11 @@ body {
   font-size: 12.5px;
   font-family: var(--font-mono);
 }
+/* Заблокированное поле шага (другой инкремент уже задан). */
+.field input[type="number"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .field .unit {
   font-size: 11px;
   color: var(--muted);
@@ -251,6 +256,11 @@ body {
   font-weight: 700;
   cursor: help;
   flex-shrink: 0;
+}
+/* Вопросик заблокированного поля шага — приглушённый. */
+.tip.locked {
+  border-color: var(--muted);
+  color: var(--muted);
 }
 /* Тултип позиционируется JS-ом как fixed (не обрезается панелью). */
 .tip-text {
@@ -311,6 +321,102 @@ body {
   max-width: 100%;
   max-height: 100%;
 }
+
+/* --- Превью: вид сверху (квадрат + точки дистанции по периметру) --- */
+.topview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.topview-square-wrap {
+  position: relative;
+  width: calc(100% - 80px);
+  max-width: 230px;
+  max-height: calc(100% - 40px);
+  aspect-ratio: 1;
+}
+.topview-square {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  background: var(--accent-soft);
+}
+.topview-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+.topview-label {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+  z-index: 3;
+}
+/* Подписи: сверху — над квадратом, снизу — под ним, по бокам — слева/справа. */
+.topview-label[data-pos="bottom"] { transform: translate(-50%, 0); margin-top: 9px; }
+.topview-label[data-pos="top"] { transform: translate(-50%, -100%); margin-top: -9px; }
+.topview-label[data-pos="left"] { transform: translate(-100%, -50%); margin-left: -9px; }
+.topview-label[data-pos="right"] { transform: translate(0, -50%); margin-left: 9px; }
+.topview-front {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* --- Превью: вид сбоку (башня блоков, column-reverse) --- */
+.tower {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.tower-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.tower-block {
+  flex: 0 0 auto;
+  width: 40px;
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  border-top: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+.tower-block:first-child { border-bottom: 1px solid var(--accent); }
+.tower-labels {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tower-labels .lbl-speed { color: var(--accent); }
+.tower-labels .lbl-fan { color: #4a9eff; }
+.tower-labels .lbl-temp { color: #ff9f3d; }
+.tower-labels .lbl-sep { color: var(--muted); }
 
 /* --- Статусбар --- */
 .statusbar {
@@ -454,6 +560,7 @@ body {
 .help-body h3:first-child { margin-top: 0; }
 .help-body p { margin: 4px 0; }
 .help-body ol { margin: 4px 0 4px 18px; padding: 0; }
+.help-body ul { margin: 4px 0 4px 18px; padding: 0; }
 .help-body li { margin: 2px 0; }
 .help-source {
   margin-top: 12px;

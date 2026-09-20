@@ -86,6 +86,7 @@ function buildForm(ui, params) {
   bindSections();
   bindLivePreview();
   bindTips();
+  applyStepLock(params);
 }
 
 function esc(s) {
@@ -128,7 +129,9 @@ function bindLivePreview() {
   var inputs = document.querySelectorAll("[data-param]");
   for (var i = 0; i < inputs.length; i++) {
     inputs[i].addEventListener("input", function () {
-      renderPreview(collectParams());
+      var params = collectParams();
+      applyStepLock(params);
+      renderPreview(params);
     });
   }
 }
@@ -173,153 +176,153 @@ function hideTip() {
 function renderPreview(params) {
   var side = document.getElementById("preview-side");
   var top = document.getElementById("preview-top");
-  if (side) {
-    side.setAttribute("viewBox", "0 0 100 100");
-    side.innerHTML = renderSide(params);
-  }
-  if (top) {
-    top.setAttribute("viewBox", "0 0 100 100");
-    top.innerHTML = renderTop(params);
-  }
+  if (side) side.innerHTML = renderSide(params);
+  if (top) top.innerHTML = renderTop(params);
+}
+
+function num(v, d) {
+  var n = Number(v);
+  return isNaN(n) ? d : n;
 }
 
 function fmtNum(v) {
   return (Math.round(v * 100) / 100).toString();
 }
 
-/* Вид сверху: квадратная подложка со стенками, засечки, надпись. */
+/* Вид сверху: квадрат с точками дистанции ретракции по периметру. */
 function renderTop(p) {
-  var dx = Number(p.dimensionX) || 220;
-  var dy = Number(p.dimensionY) || 220;
-  var srd = Number(p.startRetractiondistance) || 0;
-  var ird = Number(p.incrementRetractiondistance) || 0;
+  var srd = num(p.startRetractiondistance, 0);
+  var ird = num(p.incrementRetractiondistance, 0);
+  var val = function (i) { return fmtNum(srd + ird * i); };
 
-  var scale = 78 / Math.max(dx, dy);
-  var ox = (100 - dx * scale) / 2;
-  var oy = (100 - dy * scale) / 2;
-  var cx = ox + dx * scale / 2;
-  var cy = oy + dy * scale / 2;
-  var half = 30 * scale;
+  /* Длинные значения -> мельче шрифт, чтобы подписи не сливались. */
+  var maxLen = 0;
+  for (var i = 0; i < 16; i++) {
+    var len = val(i).length;
+    if (len > maxLen) maxLen = len;
+  }
+  var fs = maxLen > 4 ? 9 : 10;
 
-  var val = function (i) { return srd + ird * i; };
-  var fs = 3.2;
-
-  var h = "";
-  /* Стол */
-  h += '<rect x="' + ox + '" y="' + oy + '" width="' + dx * scale +
-    '" height="' + dy * scale + '" fill="var(--panel)" stroke="var(--border)" stroke-width="0.4"/>';
-  /* Квадратная подложка со стенками (обвести в квадрат) */
-  h += '<rect x="' + (cx - half) + '" y="' + (cy - half) + '" width="' + half * 2 +
-    '" height="' + half * 2 + '" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.6"/>';
-
-  /* Засечки + значения: низ 0-3, верх 11-8, лево 12-15, право 7-4 */
-  var tick = function (x1, y1, x2, y2, tx, ty, v, anchor) {
-    h += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
-      '" stroke="var(--accent)" stroke-width="0.3"/>';
-    h += '<text x="' + tx + '" y="' + ty + '" text-anchor="' + anchor +
-      '" font-size="' + fs + '" font-family="var(--font-mono)" fill="var(--accent)">' +
-      fmtNum(v) + "</text>";
+  /* Точка на линии рамки + подпись снаружи (pos — сторона квадрата). */
+  var dot = function (x, y, v, pos) {
+    return '<div class="topview-dot" style="left:' + x + '%;top:' + y + '%"></div>' +
+      '<div class="topview-label" data-pos="' + pos + '" style="left:' + x +
+      '%;top:' + y + '%;font-size:' + fs + 'px">' + v + "</div>";
   };
 
-  /* Низ (0-3): засечка вниз от нижней стенки */
+  var h = '<div class="topview-square-wrap">';
+  h += '<div class="topview-square"></div>';
+  /* Низ (0-3): подписи под квадратом */
   for (var i = 0; i < 4; i++) {
-    var x = cx - half + (i + 0.5) * (half * 2 / 4);
-    tick(x, cy + half, x, cy + half + 3, x, cy + half + 6.5, val(i), "middle");
+    h += dot((i + 0.5) * 25, 100, val(i), "bottom");
   }
-  /* Верх (11-8): засечка вверх от верхней стенки */
+  /* Верх (11-8): подписи над квадратом */
   for (var j = 0; j < 4; j++) {
-    var x2 = cx - half + (j + 0.5) * (half * 2 / 4);
-    tick(x2, cy - half, x2, cy - half - 3, x2, cy - half - 4.5, val(11 - j), "middle");
+    h += dot((j + 0.5) * 25, 0, val(11 - j), "top");
   }
-  /* Лево (12-15): засечка влево */
+  /* Лево (12-15): подписи слева */
   for (var k = 0; k < 4; k++) {
-    var y3 = cy - half + (k + 0.5) * (half * 2 / 4);
-    tick(cx - half, y3, cx - half - 3, y3, cx - half - 4, y3 + 1.2, val(12 + k), "end");
+    h += dot(0, (k + 0.5) * 25, val(12 + k), "left");
   }
-  /* Право (7-4): засечка вправо */
+  /* Право (7-4): подписи справа */
   for (var m = 0; m < 4; m++) {
-    var y4 = cy - half + (m + 0.5) * (half * 2 / 4);
-    tick(cx + half, y4, cx + half + 3, y4, cx + half + 4, y4 + 1.2, val(7 - m), "start");
+    h += dot(100, (m + 0.5) * 25, val(7 - m), "right");
   }
-
-  /* Надпись «перед» под квадратом */
-  h += '<text x="' + cx + '" y="' + (cy + half + 12) + '" text-anchor="middle" ' +
-    'font-size="3.4" font-family="var(--font-mono)" letter-spacing="1" fill="var(--muted)">' +
-    "HACKRETRACTION</text>";
+  h += "</div>";
+  /* Надпись «перед» строго под нижней гранью квадрата */
+  h += '<div class="topview-front">HACKRETRACTION</div>';
   return h;
 }
 
-/* Вид сбоку (вертикальный): блоки снизу вверх, засечки, обдув/температура. */
+/* Вид сбоку: башня из блоков (column-reverse), подписи параметров справа. */
 function renderSide(p) {
-  var nt = Math.max(1, Number(p.NumTests) || 1);
-  var lt = Math.max(1, Number(p.layersTest) || 1);
-  var lh = Number(p.layerHeight) || 0.2;
-  var srs = Number(p.startRetractionspeed) || 0;
-  var irs = Number(p.incrementRetractionspeed) || 0;
-  var fs = Number(p.speedFan) || 0;
-  var fsi = Number(p.speedFanIncrement) || 0;
-  var tsh = Number(p.tempStarthotend) || 0;
-  var tih = Number(p.tempIncrementhotend) || 0;
+  var nt = Math.max(1, Math.round(num(p.NumTests, 1)));
+  var lt = Math.max(1, num(p.layersTest, 1));
+  var srs = num(p.startRetractionspeed, 0);
+  var irs = num(p.incrementRetractionspeed, 0);
+  var fs = num(p.speedFan, 0);
+  var fsi = num(p.speedFanIncrement, 0);
+  var tsh = num(p.tempStarthotend, 0);
+  var tih = num(p.tempIncrementhotend, 0);
 
-  var maxH = nt * lt * lh;
-  var maxSpeed = srs + irs * (nt - 1);
-  var maxFan = fs + fsi * (nt - 1);
-  var maxTemp = tsh + tih * (nt - 1);
+  /* Показываем только параметры с ненулевым шагом (динамические). */
+  var showSpeed = irs !== 0;
+  var showFan = fsi !== 0;
+  var showTemp = tih !== 0;
 
-  /* Масштаб с запасом: учитываем и высоту, и скорость, и температуру, и обдув. */
-  var plotW = 62;
-  var plotH = 78;
-  var baseY = 92;
-  var leftPad = 26; /* место под засечки скорости */
-  var rightPad = 20; /* место под засечки температуры/обдува */
-  var bw = plotW / nt;
-  var hScale = plotH / Math.max(maxH, maxSpeed, maxFan, maxTemp, 1);
+  /* Высота блока пропорциональна слоям на тест (1.2px на слой). */
+  var blockH = Math.max(6, Math.round(lt * 1.2));
 
-  var h = "";
-  /* Рамка графика */
-  h += '<rect x="' + (leftPad) + '" y="' + (baseY - plotH) + '" width="' + plotW +
-    '" height="' + plotH + '" fill="none" stroke="var(--border)" stroke-width="0.4"/>';
-  h += '<line x1="' + leftPad + '" y1="' + baseY + '" x2="' + (leftPad + plotW) +
-    '" y2="' + baseY + '" stroke="var(--border)" stroke-width="0.4"/>';
-
+  var h = '<div class="tower">';
   for (var i = 0; i < nt; i++) {
-    var x = leftPad + i * bw;
-    var bh = Math.max(1.5, lt * lh * hScale);
-    var yTop = baseY - (i + 1) * bh;
-    var speed = srs + irs * i;
-    var fan = fs + fsi * i;
-    var temp = tsh + tih * i;
-
-    /* Блок */
-    h += '<rect x="' + x + '" y="' + yTop + '" width="' + (bw - 0.6) +
-      '" height="' + bh + '" fill="var(--panel-2)" stroke="var(--accent)" stroke-width="0.3"/>';
-    /* Полоска обдува (синяя) */
-    if (fan > 0) {
-      var fh = Math.min(bh, fan * hScale);
-      h += '<rect x="' + x + '" y="' + (yTop + bh - fh) + '" width="' + (bw - 0.6) +
-        '" height="' + fh + '" fill="#4a9eff" opacity="0.5"/>';
+    h += '<div class="tower-row" style="height:' + blockH + 'px">';
+    h += '<div class="tower-block"></div>';
+    h += '<div class="tower-labels">';
+    if (showSpeed) {
+      h += '<span class="lbl lbl-speed">' + fmtNum(srs + irs * i) + " мм/с</span>";
     }
-    /* Полоска температуры (оранжевая) */
-    if (temp > 0) {
-      var th = Math.min(bh, temp * hScale);
-      h += '<rect x="' + x + '" y="' + (yTop + bh - th) + '" width="' + (bw - 0.6) +
-        '" height="' + th + '" fill="#ff9f3d" opacity="0.5"/>';
+    if (showFan) {
+      h += '<span class="lbl lbl-fan">' + fmtNum(fs + fsi * i) + " %</span>";
     }
-
-    /* Засечка скорости слева */
-    var sy = yTop + bh / 2;
-    h += '<line x1="' + (leftPad - 3) + '" y1="' + sy + '" x2="' + leftPad +
-      '" y2="' + sy + '" stroke="var(--accent)" stroke-width="0.3"/>';
-    h += '<text x="' + (leftPad - 4) + '" y="' + (sy + 1.2) + '" text-anchor="end" ' +
-      'font-size="2.6" font-family="var(--font-mono)" fill="var(--accent)">' +
-      (Math.round(speed * 10) / 10) + "</text>";
+    if (showTemp) {
+      h += '<span class="lbl lbl-temp">' + fmtNum(tsh + tih * i) + " °C</span>";
+    }
+    h += "</div></div>";
   }
-
-  /* Подписи осей */
-  h += '<text x="' + (leftPad + plotW / 2) + '" y="' + (baseY + 5) +
-    '" text-anchor="middle" font-size="2.6" fill="var(--muted)">' +
-    text("preview.side") + "</text>";
+  h += "</div>";
   return h;
+}
+
+/* --- Блокировка шагов: только один из трёх инкрементов может быть ненулевым --- */
+var STEP_KEYS = ["incrementRetractionspeed", "tempIncrementhotend", "speedFanIncrement"];
+
+function label(key) {
+  if (state.ui && state.ui.labels && state.ui.labels[key]) {
+    return state.ui.labels[key];
+  }
+  return key;
+}
+
+function tip(key) {
+  if (state.ui && state.ui.tips && state.ui.tips[key]) {
+    return state.ui.tips[key];
+  }
+  return key;
+}
+
+function applyStepLock(params) {
+  var active = null;
+  for (var i = 0; i < STEP_KEYS.length; i++) {
+    if (num(params[STEP_KEYS[i]], 0) !== 0) {
+      active = STEP_KEYS[i];
+      break;
+    }
+  }
+  for (var j = 0; j < STEP_KEYS.length; j++) {
+    var key = STEP_KEYS[j];
+    var input = document.querySelector('[data-param="' + key + '"]');
+    if (!input) continue;
+    var locked = active !== null && active !== key;
+    input.disabled = locked;
+    if (locked) {
+      /* Сбрасываем заблокированное поле, чтобы не было двух ненулевых шагов. */
+      input.value = "0";
+      params[key] = 0;
+    }
+    var tipEl = input.parentElement.querySelector(".tip");
+    if (tipEl) {
+      if (locked) {
+        tipEl.setAttribute(
+          "data-tip",
+          tip("t.locked").replace("{param}", label("p." + active))
+        );
+        tipEl.classList.add("locked");
+      } else {
+        tipEl.setAttribute("data-tip", tip("t." + key));
+        tipEl.classList.remove("locked");
+      }
+    }
+  }
 }
 
 /* --- Статус --- */
@@ -385,18 +388,21 @@ function onMessage(msg) {
     case "pulled":
       state.params = msg.params || {};
       setFormValues(state.params);
+      applyStepLock(state.params);
       renderPreview(state.params);
       showStatus(msg.status || "status.pull_ok");
       break;
     case "reset":
       state.params = msg.params || {};
       setFormValues(state.params);
+      applyStepLock(state.params);
       renderPreview(state.params);
       showStatus(msg.status || "status.reset_ok");
       break;
     case "loaded":
       state.params = msg.params || {};
       setFormValues(state.params);
+      applyStepLock(state.params);
       renderPreview(state.params);
       showStatus("status.loaded");
       break;
@@ -597,22 +603,31 @@ function openSupport() {
 function renderHelp() {
   var box = document.getElementById("help-content");
   if (!box) return;
-  var keys = ["help.what", "help.steps", "help.read_top", "help.read_side",
-    "help.pick", "help.rules", "help.tips"];
-  var titles = ["help.what", "help.steps", "help.read_top", "help.read_side",
-    "help.pick", "help.rules", "help.tips"];
+  var sections = [
+    { title: "help.title", body: "help.what", type: "p" },
+    { title: "help.title_steps", body: "help.steps", type: "ol" },
+    { title: "help.title_read", body: "help.read", type: "ul" },
+    { title: "help.title_pick", body: "help.pick", type: "p" },
+    { title: "help.title_pick", body: "help.pick_list", type: "ul" },
+    { title: "help.title_tips", body: "help.tips", type: "ul" },
+  ];
   var html = "";
-  for (var i = 0; i < keys.length; i++) {
-    var t = text(titles[i]);
-    var body = text(keys[i]);
-    html += "<h3>" + esc(t) + "</h3>";
-    if (keys[i] === "help.steps") {
-      var steps = body.split("\n");
-      html += "<ol>";
-      for (var s = 0; s < steps.length; s++) {
-        html += "<li>" + esc(steps[s]) + "</li>";
+  var lastTitle = "";
+  for (var i = 0; i < sections.length; i++) {
+    var s = sections[i];
+    var t = text(s.title);
+    if (t !== lastTitle) {
+      html += "<h3>" + esc(t) + "</h3>";
+      lastTitle = t;
+    }
+    var body = text(s.body);
+    if (s.type === "ol" || s.type === "ul") {
+      var items = body.split("\n");
+      html += "<" + s.type + ">";
+      for (var j = 0; j < items.length; j++) {
+        html += "<li>" + esc(items[j]) + "</li>";
       }
-      html += "</ol>";
+      html += "</" + s.type + ">";
     } else {
       html += "<p>" + esc(body) + "</p>";
     }
