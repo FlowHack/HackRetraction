@@ -14,6 +14,8 @@ class ui:
     def create_window(
         html: str = "",
         title: str = "",
+        width: int = 0,
+        height: int = 0,
         on_message: Any = None,
         on_close: Any = None,
     ) -> Any:

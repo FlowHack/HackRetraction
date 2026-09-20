@@ -83,13 +83,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 800;
-  font-size: 13px;
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+.brand-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .brand-name { color: var(--fg); }
 
@@ -125,6 +126,16 @@ body {
   font-size: 15px;
   line-height: 1;
 }
+/* Кнопка поддержки: красная с белым сердечком (как в FlowSlice AI). */
+.btn.support {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 10px;
+}
+.btn.support:hover { background: var(--accent-hover); color: #fff; }
 
 /* --- Раскладка --- */
 .layout {
@@ -138,16 +149,17 @@ body {
   background: var(--bg);
 }
 .panel.params {
-  width: 340px;
-  min-width: 300px;
+  width: 360px;
+  min-width: 320px;
   border-right: 1px solid var(--border);
-  padding: 10px 14px;
+  padding: 10px 14px 140px; /* нижний запас под тултипы */
 }
 .panel.preview {
   flex: 1;
   display: flex;
   flex-direction: column;
   padding: 8px;
+  min-width: 0;
 }
 
 /* --- Поля параметров --- */
@@ -179,19 +191,21 @@ body {
 .sec-body { padding: 6px 10px; }
 .sec.collapsed .sec-body { display: none; }
 
+/* Ровная сетка: label | input | unit — input всегда справа на одной линии. */
 .field {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
 }
 .field label {
-  flex: 1;
   font-size: 12.5px;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .field input[type="number"] {
   width: 84px;
@@ -210,6 +224,7 @@ body {
   text-align: right;
 }
 .field textarea {
+  grid-column: 1 / -1;
   width: 100%;
   min-height: 56px;
   resize: vertical;
@@ -236,49 +251,53 @@ body {
   font-weight: 700;
   cursor: help;
   flex-shrink: 0;
-  position: relative;
 }
-.tip .tip-text {
+/* Тултип позиционируется JS-ом как fixed (не обрезается панелью). */
+.tip-text {
   display: none;
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  width: 220px;
-  padding: 8px 10px;
+  position: fixed;
+  z-index: 200;
+  width: 260px;
+  padding: 9px 11px;
   background: var(--panel-2);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   color: var(--fg);
-  font-size: 11.5px;
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 1.4;
   text-align: left;
-  z-index: 50;
   white-space: normal;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
-.tip:hover .tip-text,
-.tip:focus .tip-text { display: block; }
+.tip-text.visible { display: block; }
 
-/* --- Превью --- */
-.preview-tabs {
+/* --- Превью: одно окно, side слева + top справа --- */
+.preview-panel {
+  flex: 1;
   display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 8px;
+  min-height: 0;
 }
-.ptab {
-  padding: 3px 14px;
+.preview-block {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--panel-2);
-  color: var(--fg);
-  cursor: pointer;
-  font-size: 12.5px;
+  background: var(--panel);
+  min-width: 0;
+  overflow: hidden;
 }
-.ptab.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.preview-block.side { flex: 0 0 42%; }
+.preview-block.top { flex: 1; }
+.preview-title {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .preview-wrap {
   flex: 1;
@@ -286,8 +305,9 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 0;
+  padding: 6px;
 }
-#preview {
+.preview-wrap svg {
   max-width: 100%;
   max-height: 100%;
 }
@@ -318,13 +338,17 @@ body {
 }
 .modal-overlay.hidden { display: none; }
 .modal {
-  width: 380px;
-  max-width: 92%;
+  width: 420px;
+  max-width: 94%;
+  max-height: 90%;
+  display: flex;
+  flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
+.modal.wide { width: 640px; }
 .modal-head {
   display: flex;
   align-items: center;
@@ -332,16 +356,17 @@ body {
   padding: 10px 14px;
   font-weight: 700;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .modal-close {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 16px;
   cursor: pointer;
 }
 .modal-close:hover { color: var(--accent); }
-.modal-body { padding: 14px; }
+.modal-body { padding: 14px; overflow: auto; }
 .modal-body .field {
   display: flex;
   align-items: center;
@@ -358,6 +383,21 @@ body {
   color: var(--fg);
   font-size: 13px;
 }
+.modal-body input[type="range"] {
+  width: 180px;
+  accent-color: var(--accent);
+}
+.font-size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.font-size-val {
+  min-width: 34px;
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
 
 /* --- Поддержка --- */
 .support-body { text-align: center; }
@@ -372,8 +412,56 @@ body {
   line-height: 1.45;
   margin: 0 0 14px;
 }
-.support-links { text-align: center; }
-.support-links .btn { display: inline-block; }
+.donate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.donate-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.donate-card .d-title {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 110px;
+}
+.donate-card .d-value {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.donate-card .d-actions { display: flex; gap: 6px; }
+.donate-card .btn { padding: 3px 9px; font-size: 12px; }
+
+/* --- Помощь --- */
+.help-body { font-size: 13px; line-height: 1.5; }
+.help-body h3 {
+  color: var(--accent);
+  font-size: 13.5px;
+  margin: 14px 0 4px;
+}
+.help-body h3:first-child { margin-top: 0; }
+.help-body p { margin: 4px 0; }
+.help-body ol { margin: 4px 0 4px 18px; padding: 0; }
+.help-body li { margin: 2px 0; }
+.help-source {
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
 
 /* --- Скроллбары --- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }

@@ -97,6 +97,8 @@ class CoreMixin:
         from ..i18n import PARAM_SECTIONS, PARAM_TYPES, PARAM_UNITS, I18N_PY
 
         table = I18N_PY.get(self.lang, I18N_PY["en"])
+        from ..constants import DONATION_OPTIONS
+
         return {
             "sections": PARAM_SECTIONS,
             "labels": {k: v for k, v in table.items() if k.startswith("p.")},
@@ -104,6 +106,7 @@ class CoreMixin:
             "units": PARAM_UNITS,
             "types": PARAM_TYPES,
             "texts": {k: v for k, v in table.items() if not k.startswith(("p.", "t."))},
+            "donate": [dict(item) for item in DONATION_OPTIONS],
         }
 
     # --- Параметры ---

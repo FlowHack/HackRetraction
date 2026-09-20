@@ -60,6 +60,8 @@ class HackRetractionWindow(_ConfigMixin, _SCRIPT_BASE):  # type: ignore[name-def
             self._win = host.host.ui.create_window(  # type: ignore[attr-defined]
                 html=HTML_PAGE,
                 title=self._t("window_title"),
+                width=1180,
+                height=780,
                 on_message=self._on_message,
                 on_close=self._on_close,
             )

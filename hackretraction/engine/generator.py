@@ -16,7 +16,6 @@ from decimal import Decimal
 from typing import Dict, List
 
 from ..errors import GenerationError
-from ..logging import _LOGGER
 from .comments import EN_DEFAULT_COMMENTS
 
 GENERATOR_VERSION = "1.3.1"

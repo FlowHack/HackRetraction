@@ -143,3 +143,26 @@ PARAM_LIMITS: dict[str, tuple[float, float]] = {
 
 # Имя файла по умолчанию для экспорта.
 DEFAULT_GCODE_FILENAME = "retraction_calibration.gcode"
+
+# Реквизиты для поддержки проекта. Единый источник данных для UI: при смене
+# адреса достаточно обновить эту константу. url пустой, если ссылки нет.
+DONATION_OPTIONS: tuple[dict[str, str], ...] = (
+    {
+        "id": "yoomoney",
+        "title": "YoMoney",
+        "value": "4100119569298015",
+        "url": "https://yoomoney.ru/to/4100119569298015",
+    },
+    {
+        "id": "usdt",
+        "title": "USDT (TRC-20)",
+        "value": "TJRUKLwmYk8DpjFCyakQxWzXeJL6hrFTxZ",
+        "url": "",
+    },
+    {
+        "id": "btc",
+        "title": "BTC",
+        "value": "15f1swAtj7T1yVaXGEGWyLrfxSmDn1NKiY",
+        "url": "",
+    },
+)
