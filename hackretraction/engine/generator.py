@@ -6,14 +6,17 @@
   а не зашиты жёстко;
 - таблица "Variables by Height" идёт от 0 до nt-1 (консистентно с кодом
   калибровки, в оригинале — в обратном порядке);
-- на первом слое перед кубом печатается надпись FRONT_LABEL («HACKRETRACTION»)
-  точечным шрифтом 5x7 — ориентация куба (в оригинале перед не помечался);
-- ВСЕ перемещения — в АБСОЛЮТНЫХ координатах (G90): слайсеры корректно
-  отображают превью только без G91. Подложка, надпись и башня центрируются
-  относительно стола и никогда не разъезжаются;
-- подложка — прямоугольник 90x80 с выступом спереди (Y-) под надпись:
-  буквы «вырезаются» из подложки (заливка огибает их), а не печатаются
-  поверх неё.
+- на 3-м слое поверх подложки печатается надпись FRONT_LABEL
+  («HACKRETRACTION») выпуклыми линиями палочного шрифта — ориентация
+  куба (в оригинале перед не помечался);
+- перемещения — в АБСОЛЮТНЫХ координатах (G90): слайсеры корректно
+  отображают превью только без G91. Подложка, надпись и башня
+  центрируются относительно стола и никогда не разъезжаются. Исключение —
+  штрихи букв надписи (G91): относительные координаты делают макрос
+  буквы легко перемещаемым;
+- подложка — сплошной зигзаг 90x80 с выступом спереди (Y-) под надпись:
+  слои 1-2 заливаются от края до края без вырезов, буквы печатаются
+  поверх подложки выпуклыми линиями (не вырезаются из неё).
 """
 
 from __future__ import annotations
@@ -123,77 +126,64 @@ def _corner_markers(
     return x, y
 
 
-# Точечный шрифт 5x7 (бит 4..0 = колонки 0..4, 7 строк сверху вниз).
-_FONT_5X7 = {
-    "H": (17, 17, 17, 31, 17, 17, 17),
-    "A": (14, 17, 17, 31, 17, 17, 17),
-    "C": (14, 17, 16, 16, 16, 17, 14),
-    "K": (17, 17, 19, 30, 20, 17, 17),
-    "R": (30, 17, 17, 30, 17, 17, 17),
-    "E": (30, 17, 16, 30, 16, 17, 30),
-    "T": (31, 4, 4, 4, 4, 4, 4),
-    "I": (14, 4, 4, 4, 4, 4, 14),
-    "O": (14, 17, 17, 17, 17, 17, 14),
-    "N": (17, 25, 21, 19, 17, 17, 17),
+# Палочный (stroke) шрифт: каждая буква — список точек (x, y) в координатах
+# буквы (высота 7 мм, ширина 5 мм, шаг между буквами 6 мм). Буква рисуется
+# непрерывной последовательностью G1-отрезков «как ручкой, не отрывая её».
+# Y+ — вниз (текст печатается вниз от верхнего левого угла).
+_STROKE_FONT: Dict[str, List[Tuple[float, float]]] = {
+    "H": [(0, 0), (0, 7), (0, 3.5), (5, 3.5), (5, 0), (5, 7)],
+    "A": [(0, 7), (2.5, 0), (5, 7), (1.25, 4), (3.75, 4)],
+    "C": [(5, 1), (4, 0), (1, 0), (0, 1), (0, 6), (1, 7), (4, 7), (5, 6)],
+    "K": [(0, 0), (0, 7), (0, 3.5), (5, 0), (0, 3.5), (5, 7)],
+    "R": [(0, 0), (0, 7), (4, 7), (5, 6), (5, 4), (4, 3), (0, 3), (2.5, 3), (5, 0)],
+    "E": [(5, 0), (0, 0), (0, 7), (5, 7), (0, 3.5), (4, 3.5)],
+    "T": [(0, 0), (5, 0), (2.5, 0), (2.5, 7)],
+    "I": [(2.5, 0), (2.5, 7)],
+    "O": [(0, 1), (1, 0), (4, 0), (5, 1), (5, 6), (4, 7), (1, 7), (0, 6), (0, 1)],
+    "N": [(0, 7), (0, 0), (5, 7), (5, 0)],
 }
 
 FRONT_LABEL = "HACKRETRACTION"
 
 
-def _text_gaps(
+def _stroke_text(
+    lines: List[str],
+    params: Dict[str, float],
     text: str,
     x: float,
     y: float,
-    step: float = 1.0,
-) -> List[Tuple[float, float, float, float]]:
-    """Прямоугольники точек текста (x0, x1, y0, y1) точечным шрифтом 5x7.
+    ps: float,
+    ts: float,
+) -> None:
+    """Печать текста выпуклыми линиями (палочный шрифт, G91).
 
-    (x, y) — верхний левый угол текста; текст печатается вниз (Y+).
-    Используется для «вырезания» букв из подложки: в этих местах
-    заливка не печатается (сопло огибает буквы).
+    Каждая буква — непрерывная последовательность G1-отрезков в
+    относительных координатах (G91), поэтому макрос буквы легко
+    перемещать. Между буквами — микро-ретракт (G1 E-0.5), переход G0
+    к началу следующей буквы и возврат пластика (G1 E0.5).
+    (x, y) — верхний левый угол текста; буквы «растут» вниз (Y+).
     """
-    gaps: List[Tuple[float, float, float, float]] = []
-    bx = x
-    for ch in text.upper():
-        glyph = _FONT_5X7.get(ch)
-        if glyph is None:
-            bx += step * 6
+    lines.append("G91")
+    for i, ch in enumerate(text.upper()):
+        pts = _STROKE_FONT.get(ch)
+        if pts is None:
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(6, 2)} Y{_fmt(0, 2)}")
             continue
-        for row in range(7):
-            bits = glyph[row]
-            for col in range(5):
-                if bits & (1 << (4 - col)):
-                    gaps.append(
-                        (bx + col * step, bx + (col + 1) * step,
-                         y + row * step, y + (row + 1) * step)
-                    )
-        bx += step * 6
-    return gaps
-
-
-def _split_line(
-    start: float,
-    end: float,
-    gaps: List[Tuple[float, float]],
-) -> List[Tuple[float, float]]:
-    """Разбивает отрезок [start, end] на сегменты, исключая пропуски gaps.
-
-    gaps — список (gx0, gx1) в порядке возрастания. Возвращает список
-    (sx0, sx1) — сегменты, которые нужно печатать.
-    """
-    segs: List[Tuple[float, float]] = []
-    cur = start
-    for gx0, gx1 in sorted(gaps):
-        if gx1 <= cur or gx0 >= end:
-            continue
-        if gx0 > cur:
-            segs.append((cur, min(gx0, end)))
-        cur = max(cur, gx1)
-        if cur >= end:
-            break
-    if cur < end:
-        segs.append((cur, end))
-    return segs
+        px, py = pts[0]
+        for tx, ty in pts[1:]:
+            dx, dy = tx - px, ty - py
+            dist = (dx * dx + dy * dy) ** 0.5
+            lines.append(
+                f"G1 F{int(ps * 60)} X{_fmt(dx, 2)} Y{_fmt(dy, 2)} "
+                f"E{_fmt(_e_value(params, dist), 5)}"
+            )
+            px, py = tx, ty
+        if i < len(text) - 1:
+            last_x, last_y = pts[-1]
+            lines.append(f"G1 F{int(ts) * 60} E-0.50")
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(6 - last_x, 2)} Y{_fmt(-last_y, 2)}")
+            lines.append(f"G1 F{int(ts) * 60} E0.50")
+    lines.append("G90")
 
 
 def generate_gcode(
@@ -256,16 +246,32 @@ def generate_gcode(
     )
     lines.append(";\t\t|\t\t|\t\t|\t\t|")
     lines.append(";")
-    lines.append(f";{_fmt(srd + ird * 12, 2)}-                               -{_fmt(srd + ird * 7, 2)}")
+    lines.append(
+        f";{_fmt(srd + ird * 12, 2)}-"
+        "                               "
+        f"-{_fmt(srd + ird * 7, 2)}"
+    )
     lines.append(";")
     lines.append(";")
-    lines.append(f";{_fmt(srd + ird * 13, 2)}-                               -{_fmt(srd + ird * 6, 2)}")
+    lines.append(
+        f";{_fmt(srd + ird * 13, 2)}-"
+        "                               "
+        f"-{_fmt(srd + ird * 6, 2)}"
+    )
     lines.append(";")
     lines.append(";")
-    lines.append(f";{_fmt(srd + ird * 14, 2)}-                               -{_fmt(srd + ird * 5, 2)}")
+    lines.append(
+        f";{_fmt(srd + ird * 14, 2)}-"
+        "                               "
+        f"-{_fmt(srd + ird * 5, 2)}"
+    )
     lines.append(";")
     lines.append(";")
-    lines.append(f";{_fmt(srd + ird * 15, 2)}-                               -{_fmt(srd + ird * 4, 2)}")
+    lines.append(
+        f";{_fmt(srd + ird * 15, 2)}-"
+        "                               "
+        f"-{_fmt(srd + ird * 4, 2)}"
+    )
     lines.append(";")
     lines.append(";\t\t|\t\t|\t\t|\t\t|")
     lines.append(
@@ -346,62 +352,68 @@ def generate_gcode(
     lines.append(f"G1 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh, 2)}")
     lines.append(";")
 
-    # --- Рафт (переэкструзия): подложка 90x80 с выступом спереди под надпись ---
+    # --- Рафт (переэкструзия): сплошная подложка 90x80 с выступом спереди ---
     ev = _e_value(params, 60) * 1.25
     ev_increase = ev
-    # Буквы надписи «вырезаются» из подложки: в этих местах заливка не печатается
-    text_gaps = _text_gaps(FRONT_LABEL, text_x, text_y)
 
     lines.append(";" + _c["layer"] + " 1")
-    # Горизонталь (линии снизу вверх, шаг 2 мм; в зоне букв — сегменты)
+    # Горизонталь: сплошной зигзаг от края до края, без вырезов и G0-прыжков
     y = raft_y0
     while y < raft_y1:
-        # в зоне букв линии идут с шагом 1 мм, чтобы вырезать каждую строку точек
-        step = 1 if text_y - 1 <= y < text_y + 7 else 2
-        inc = ev_increase if step == 2 else ev_increase / 2
-        row_gaps = [(g[0], g[1]) for g in text_gaps if g[2] <= y < g[3]]
-        if row_gaps:
-            segs = _split_line(raft_x0, raft_x1, row_gaps)
-            for i, (sx0, sx1) in enumerate(segs):
-                lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(sx1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-                ev = ev + inc
-                if i < len(segs) - 1:
-                    lines.append(f"G0 F{int(ts) * 60} X{_fmt(segs[i + 1][0], 2)} Y{_fmt(y, 2)}")
-        else:
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-            ev = ev + inc
-        y = y + step
-        if y < raft_y1:
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
+        # линия вправо
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        y = y + 2
+        if y >= raft_y1:
+            break
+        # переход вверх на правом краю
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        # линия влево
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        y = y + 2
+        if y >= raft_y1:
+            break
+        # переход вверх на левом краю
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
     # Возврат к началу рафта на высоту 2-го слоя
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
 
     lines.append(";" + _c["layer"] + " 2")
-    # Вертикаль (линии слева направо, шаг 2 мм; в зоне букв — сегменты)
+    # Вертикаль: сплошной зигзаг от края до края
     x = raft_x0
     while x < raft_x1:
-        # в зоне букв линии идут с шагом 1 мм, чтобы вырезать каждую колонку точек
-        step = 1 if text_x - 1 <= x < text_x + len(FRONT_LABEL) * 6 else 2
-        inc = ev_increase if step == 2 else ev_increase / 2
-        col_gaps = [(g[2], g[3]) for g in text_gaps if g[0] <= x < g[1]]
-        if col_gaps:
-            segs = _split_line(raft_y0, raft_y1, col_gaps)
-            for i, (sy0, sy1) in enumerate(segs):
-                lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(sy1, 2)} E{_fmt(ev, 5)}")
-                ev = ev + inc
-                if i < len(segs) - 1:
-                    lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(segs[i + 1][0], 2)}")
-        else:
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
-            ev = ev + inc
-        x = x + step
-        if x < raft_x1:
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
+        # линия вниз (Y+)
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        x = x + 2
+        if x >= raft_x1:
+            break
+        # переход вправо на нижнем краю
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        # линия вверх (Y-)
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
+        x = x + 2
+        if x >= raft_x1:
+            break
+        # переход вправо на верхнем краю
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
+        ev = ev + ev_increase
     # Переход к стартовой позиции калибровки (слой 3)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
 
     # Относительная экструзия (координаты — абсолютные, G90)
     lines.append("M83")
+
+    # --- Надпись HACKRETRACTION (слой 3): выпуклые буквы поверх подложки ---
+    lines.append(";" + _c["layer"] + " 3")
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
+    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts)
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
 
     # --- Калибровка ---
     ev = _e_value(params, 10)

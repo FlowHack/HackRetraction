@@ -88,21 +88,36 @@ def test_calibration_geometry() -> None:
     # M106/M104 — по одному на тест
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
-    # абсолютные координаты (G90), относительная экструзия (M83), без G91
-    assert "M83" in lines and "G90" in lines and "G91" not in lines
+    # абсолютные координаты (G90), относительная экструзия (M83);
+    # G91 — только для штрихов букв надписи (ровно один раз)
+    assert "M83" in lines and "G90" in lines and lines.count("G91") == 1
     # конечный gcode вставлен в конец
     assert gcode.rstrip().endswith(";END")
 
 
 def test_front_label_printed() -> None:
-    """Буквы надписи «вырезаются» из подложки (пропуски в заливке)."""
+    """Надпись печатается выпуклыми линиями поверх сплошной подложки."""
     gcode = _gcode()
-    # после рафта — переход к старту башни (cx-25, cy-25) = (135.0, 135.0)
-    assert "G0 F9000 X135.00 Y135.00 Z0.60" in gcode
-    # строка Y=124 (row 1 буквы H): сегменты [115,118],[119,122],[123,205]
-    assert "G1 F2100 X118.00 Y124.00 E" in gcode
-    # переход к началу следующего сегмента (огибание буквы)
-    assert "G0 F9000 X119.00 Y124.00" in gcode
+    lines = gcode.splitlines()
+    # слой 1: сплошной зигзаг, единственный G0 — возврат к началу слоя 2
+    i1 = lines.index(";Layer 1")
+    i2 = lines.index(";Layer 2")
+    g0s = [l for l in lines[i1:i2] if l.startswith("G0")]
+    assert len(g0s) == 1 and g0s[0] == "G0 F9000 X115.00 Y120.00 Z0.40"
+    i3 = next(
+        i for i, l in enumerate(lines[i2:], i2)
+        if l.startswith("G0 F9000 X135.00 Y135.00 Z0.60")
+    )
+    # слой 2: сплошной зигзаг до перехода к старту калибровки
+    assert not any(l.startswith("G0") for l in lines[i2:i3])
+    # переход к тексту (text_x=cx-42=118, text_y=cy-37=123)
+    assert "G0 F9000 X118.00 Y123.00" in gcode
+    # первый штрих буквы H: (0,0)->(0,7), ev = eValue(7) = 0.16128
+    assert "G1 F4200 X0.00 Y7.00 E0.16128" in gcode
+    # микро-ретракт между буквами: от конца H (5,7) к началу A (6,0)
+    assert "G1 F9000 E-0.50" in gcode
+    assert "G0 F9000 X1.00 Y-7.00" in gcode
+    assert "G1 F9000 E0.50" in gcode
 
 
 def test_all_inputs_section() -> None:
