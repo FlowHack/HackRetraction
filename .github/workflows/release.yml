@@ -91,11 +91,16 @@ jobs:
           if f"Version: {version}" not in metadata:
               raise SystemExit(f"METADATA не содержит Version: {version}")
 
-          # Список обязательных файлов расширяется по мере реализации пакета
-          # (engine/, ui/ и т.д.) — см. AGENTS.md, раздел «Архитектура пакета».
+          # Список обязательных файлов расширяется по мере реализации пакета.
           required = [
               "hackretraction/__init__.py",
               "hackretraction/version.py",
+              "hackretraction/plugin.py",
+              "hackretraction/engine/__init__.py",
+              "hackretraction/ui/__init__.py",
+              "hackretraction/ui/index.html",
+              "hackretraction/ui/style.css",
+              "hackretraction/ui/app.js",
           ]
           missing = [p for p in required if p not in names]
           if missing:

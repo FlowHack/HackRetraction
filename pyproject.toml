@@ -19,10 +19,10 @@ dynamic = ["version"]
 version = { attr = "hackretraction.version.__version__" }
 
 # В wheel попадают ТОЛЬКО перечисленные пакеты: никаких docs/, fork/, assets/,
-# stubs/, tests/ и исходников PyQt5-версии. Подпакеты (engine/, ui/) добавляются
-# в список по мере реализации — см. AGENTS.md.
+# stubs/, tests/ и исходников PyQt5-версии. Подпакеты (engine/, ui/) обязаны
+# быть в списке — иначе их нет в wheel и плагин не импортируется в Orca.
 [tool.setuptools]
-packages = ["hackretraction"]
+packages = ["hackretraction", "hackretraction.engine", "hackretraction.ui"]
 
 [tool.setuptools.package-data]
 "hackretraction.ui" = ["*.css", "*.html", "*.js"]
