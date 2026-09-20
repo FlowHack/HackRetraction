@@ -54,23 +54,25 @@ def test_version_header() -> None:
 
 
 def test_start_movement_position() -> None:
-    # dx=320 -> xpos = 320/2 - 30 = 130.0, как в эталоне.
+    # dx=320 -> рафт стартует с (320/2-45, 320/2-40) = (115.0, 120.0).
     gcode = _gcode()
-    assert "G1 F9000 X130.0 Y130.0 Z0.2" in gcode
+    assert "G1 F9000 X115.00 Y120.00 Z0.20" in gcode
 
 
 def test_raft_extrusion_values() -> None:
     # eValue(60)*1.25 = 1.72803 (эталон: G1 F2100 X190.0 Y130.0 E1.72803).
     gcode = _gcode()
-    assert "G1 F2100 X190.0 Y130.0 E1.72803" in gcode
-    assert "G1 F2100 X130.0 Y131.0 E3.45607" in gcode
+    assert "G1 F2100 X205.00 Y120.00 E1.72803" in gcode
+    assert "G1 F2100 X115.00 Y121.00 E3.45607" in gcode
 
 
 def test_calibration_values() -> None:
     # eValue(10) = 0.23040, eValue(1) = 0.02304 (эталон).
     gcode = _gcode()
-    assert "G1 F4200 Y10 E0.23040" in gcode
-    assert "G1 F4200 X-2 E0.02304" in gcode
+    # первое движение печати Right-стороны: от (190,140) на Y+10
+    assert "G1 F4200 Y150.00 E0.23040" in gcode
+    # маркер нижнего левого угла: от (140,140) на X-2
+    assert "G1 F4200 X138.00 E0.02304" in gcode
     # скорость ретракции первого теста: (5.0 + 2.0*0)*60 = 300.00
     assert "G1 E-0.80 F300.00" in gcode
 
@@ -80,24 +82,26 @@ def test_calibration_geometry() -> None:
     gcode = _gcode()
     lines = gcode.splitlines()
     nt, lt = 15, 25
-    # по одному G1 Z0.2 на каждый слой теста
-    assert sum(1 for l in lines if l == "G1 Z0.2") == nt * lt
+    # по одному G1 Z на каждый слой теста + стартовый подъём
+    assert sum(1 for l in lines if l.startswith("G1 Z")) == nt * lt + 1
     # M106/M104 — по одному на тест
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
-    # смена режима относительных координат перед калибровкой
-    assert "M83" in lines and "G91" in lines
+    # абсолютные координаты (G90), относительная экструзия (M83), без G91
+    assert "M83" in lines and "G90" in lines and "G91" not in lines
     # конечный gcode вставлен в конец
     assert gcode.rstrip().endswith(";END")
 
 
 def test_front_label_printed() -> None:
-    """Надпись «перед» печатается на первом слое перед кубом."""
+    """Надпись «перед» печатается на первом слое в выступе подложки."""
     gcode = _gcode()
-    assert "G0 F9000 X-42 Y-25" in gcode
-    assert "G0 F9000 X42 Y25" in gcode
-    # буквы печатаются штрихами с экструзией
-    assert "G1 F4200 X1.0 E0.02304" in gcode
+    # старт текста: (cx-42, cy-32) = (118.0, 128.0)
+    assert "G0 F9000 X118.00 Y128.00" in gcode
+    # после текста — переход к старту башни (cx-20, cy-20) = (140.0, 140.0)
+    assert "G0 F9000 X140.00 Y140.00" in gcode
+    # буквы печатаются штрихами с экструзией (первая точка H: X118+1)
+    assert "G1 F4200 X119.00 E0.02304" in gcode
 
 
 def test_all_inputs_section() -> None:
