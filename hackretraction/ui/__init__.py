@@ -13,6 +13,6 @@ def _read(name: str) -> str:
 
 HTML_PAGE = (
     _read("index.html")
-    .replace("<!--STYLE-->", _read("style.css"))
-    .replace("<!--SCRIPT-->", _read("app.js"))
+    .replace("/*STYLE*/", _read("style.css"))
+    .replace("/*SCRIPT*/", _read("app.js"))
 )
