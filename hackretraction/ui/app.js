@@ -156,7 +156,9 @@ function showTip(e) {
   var tip = e.currentTarget;
   var box = document.getElementById("tip-box");
   if (!box) return;
-  box.textContent = tip.getAttribute("data-tip") || "";
+  /* data-tip может содержать ключ перевода (t.*) — резолвим в текст. */
+  var key = tip.getAttribute("data-tip") || "";
+  box.textContent = key.indexOf("t.") === 0 ? tip(key) : key;
   var r = tip.getBoundingClientRect();
   var left = r.right + 8;
   var top = r.top;

@@ -198,7 +198,7 @@ body {
   width: 360px;
   min-width: 320px;
   border-right: 1px solid var(--border);
-  padding: 10px 14px 140px; /* нижний запас под тултипы */
+  padding: 10px 14px;
 }
 .panel.preview {
   flex: 1;
@@ -440,8 +440,9 @@ body {
 .tower {
   display: flex;
   flex-direction: column-reverse;
-  align-items: center;
-  width: 100%;
+  /* Блоки ровно по левому краю; колонна целиком центрируется контейнером. */
+  align-items: flex-start;
+  width: fit-content;
   max-height: 100%;
   overflow-y: auto;
 }
