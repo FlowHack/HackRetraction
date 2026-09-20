@@ -1,0 +1,175 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  qa:
+    name: QA (pylint + pyright + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint pyright pytest
+
+      - name: pylint
+        run: PYTHONPATH=stubs pylint hackretraction --fail-under=9.0
+
+      - name: pyright
+        run: PYTHONPATH=stubs pyright hackretraction
+
+      - name: pytest
+        run: pytest tests/ -v
+
+  build-wheel:
+    name: Сборка wheel
+    needs: qa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Проверка версии из тега
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION=$(python -c "from hackretraction.version import __version__; print(__version__)")
+          if [[ "$TAG" == v* && "$TAG" != "v$VERSION" ]]; then
+            echo "::error::Тег $TAG не совпадает с версией пакета $VERSION (hackretraction/version.py)"
+            exit 1
+          fi
+          echo "Версия пакета: $VERSION"
+
+      - name: Сборка wheel
+        run: python -m build --wheel
+
+      - name: Патч метаданных wheel
+        run: python tools/patch_wheel.py dist/*.whl
+
+      - name: Проверка содержимого wheel
+        run: |
+          python - <<'EOF'
+          import glob
+          import zipfile
+
+          whl = glob.glob("dist/*.whl")[0]
+          archive = zipfile.ZipFile(whl)
+          names = archive.namelist()
+          bad = [n for n in names if any(
+              p in n for p in ("docs/", "fork/", "assets/", "stubs/", "tests/",
+                               "RetCalMain.py", "RetCalui.py", "RetCalui.ui",
+                               "RetCalResource", "site/")
+          )]
+          if bad:
+              raise SystemExit(f"В wheel попали лишние файлы: {bad}")
+
+          metadata_name = next(n for n in names if n.endswith(".dist-info/METADATA"))
+          metadata = archive.read(metadata_name).decode("utf-8")
+          if "Name: HackRetraction" not in metadata:
+              raise SystemExit("В METADATA нет человекочитаемого имени 'Name: HackRetraction'")
+          if "Import-Name: hackretraction" not in metadata:
+              raise SystemExit("В METADATA нет 'Import-Name: hackretraction'")
+
+          from hackretraction.version import __version__ as version
+          if f"Version: {version}" not in metadata:
+              raise SystemExit(f"METADATA не содержит Version: {version}")
+
+          # Список обязательных файлов расширяется по мере реализации пакета
+          # (engine/, ui/ и т.д.) — см. AGENTS.md, раздел «Архитектура пакета».
+          required = [
+              "hackretraction/__init__.py",
+              "hackretraction/version.py",
+          ]
+          missing = [p for p in required if p not in names]
+          if missing:
+              raise SystemExit(f"В wheel отсутствуют обязательные файлы: {missing}")
+
+          package_files = [n for n in names if n.startswith("hackretraction/") and n.endswith(".py")]
+          print(f"OK: {whl}, файлов: {len(names)}, пакетных модулей: {len(package_files)}, версия {version}")
+          EOF
+
+      - name: Загрузка артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+          retention-days: 7
+
+  create-release:
+    name: Создание релиза
+    needs: build-wheel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Загрузка артефакта
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: release-files/
+
+      - name: Установка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Определение версии
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(python -c "from hackretraction.version import __version__; print(__version__)")
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Удаление существующего релиза
+        # БЕЗ --cleanup-tag: пересоздание тега через API триггерит новое push-событие
+        # (tag), которое запускает этот же workflow повторно — бесконечный цикл.
+        # Удаляем только релиз, тег оставляем нетронутым.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "v${{ steps.version.outputs.version }}" --yes 2>/dev/null || true
+
+      - name: Создание релиза
+        # gh release create: с GITHUB_TOKEN событие release: published НЕ порождает
+        # новый workflow-run (ограничение GitHub), поэтому автопубликация в OrcaCloud
+        # из publish-orcacloud.yml сработает только при наличии secrets.RELEASE_TOKEN
+        # (PAT с правами repo). Без него релиз создаётся, а публикация выполняется
+        # вручную: пересоздать релиз или workflow_dispatch в publish-orcacloud.yml.
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if [[ -f RELEASE_NOTES.md ]]; then
+            gh release create "$TAG" \
+              --title "HackRetraction $TAG" \
+              --notes-file RELEASE_NOTES.md \
+              release-files/*
+          else
+            gh release create "$TAG" \
+              --title "HackRetraction $TAG" \
+              release-files/*
+          fi

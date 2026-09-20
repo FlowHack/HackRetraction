@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# PEP 508 запрещает пробелы в имени проекта, поэтому в исходнике — валидный
+# "HackRetraction". Человекочитаемое имя "HackRetraction" проставляет в METADATA
+# пост-сборочный скрипт tools/patch_wheel.py (Orca читает имя и автора оттуда).
+name = "HackRetraction"
+description = "Retraction calibration test generator for OrcaSlicer: builds a gcode test pattern from your printer profile and exports it to a file of your choice."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+authors = [{ name = "FlowHack" }]
+dependencies = []
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = { attr = "hackretraction.version.__version__" }
+
+# В wheel попадают ТОЛЬКО перечисленные пакеты: никаких docs/, fork/, assets/,
+# stubs/, tests/ и исходников PyQt5-версии. Подпакеты (engine/, ui/) добавляются
+# в список по мере реализации — см. AGENTS.md.
+[tool.setuptools]
+packages = ["hackretraction"]
+
+[tool.setuptools.package-data]
+"hackretraction.ui" = ["*.css", "*.html", "*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
