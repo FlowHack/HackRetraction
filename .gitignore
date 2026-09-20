@@ -13,6 +13,7 @@ example/
 docs/
 fork/
 site/
+example_gcode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
