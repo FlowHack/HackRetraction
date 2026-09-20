@@ -12,7 +12,8 @@
   отображают превью только без G91. Подложка, надпись и башня центрируются
   относительно стола и никогда не разъезжаются;
 - подложка — прямоугольник 90x80 с выступом спереди (Y-) под надпись:
-  надпись печатается В выступе подложки, а не отдельно от неё.
+  буквы «вырезаются» из подложки (заливка огибает их), а не печатаются
+  поверх неё.
 """
 
 from __future__ import annotations
@@ -139,49 +140,60 @@ _FONT_5X7 = {
 FRONT_LABEL = "HACKRETRACTION"
 
 
-def _print_text(
-    lines: List[str],
-    ps: float,
-    ts: float,
-    marker: float,
+def _text_gaps(
     text: str,
     x: float,
     y: float,
     step: float = 1.0,
-) -> Tuple[float, float]:
-    """Печать текста точечным шрифтом 5x7 в АБСОЛЮТНЫХ координатах.
+) -> List[Tuple[float, float, float, float]]:
+    """Прямоугольники точек текста (x0, x1, y0, y1) точечным шрифтом 5x7.
 
     (x, y) — верхний левый угол текста; текст печатается вниз (Y+).
-    Каждая точка — короткий штрих с экструзией (как маркеры углов).
-    Возвращает (x, y) — стартовую позицию (перемещение к следующему
-    блоку выполняет вызывающий код).
+    Используется для «вырезания» букв из подложки: в этих местах
+    заливка не печатается (сопло огибает буквы).
     """
-    lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(y, 2)}")
-    cx, cy = x, y
+    gaps: List[Tuple[float, float, float, float]] = []
+    bx = x
     for ch in text.upper():
         glyph = _FONT_5X7.get(ch)
         if glyph is None:
-            cx += step * 6
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(cx, 2)}")
+            bx += step * 6
             continue
         for row in range(7):
             bits = glyph[row]
             for col in range(5):
                 if bits & (1 << (4 - col)):
-                    cx += step
-                    lines.append(f"G1 F{int(ps * 60)} X{_fmt(cx, 2)} E{_fmt(marker, 5)}")
-                    cx -= step
-                    lines.append(f"G0 F{int(ts) * 60} X{_fmt(cx, 2)}")
-                cx += step
-                lines.append(f"G0 F{int(ts) * 60} X{_fmt(cx, 2)}")
-            cx -= step * 5
-            cy += step
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(cx, 2)} Y{_fmt(cy, 2)}")
-        cy -= step * 7
-        lines.append(f"G0 F{int(ts) * 60} Y{_fmt(cy, 2)}")
-        cx += step * 6
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(cx, 2)}")
-    return x, y
+                    gaps.append(
+                        (bx + col * step, bx + (col + 1) * step,
+                         y + row * step, y + (row + 1) * step)
+                    )
+        bx += step * 6
+    return gaps
+
+
+def _split_line(
+    start: float,
+    end: float,
+    gaps: List[Tuple[float, float]],
+) -> List[Tuple[float, float]]:
+    """Разбивает отрезок [start, end] на сегменты, исключая пропуски gaps.
+
+    gaps — список (gx0, gx1) в порядке возрастания. Возвращает список
+    (sx0, sx1) — сегменты, которые нужно печатать.
+    """
+    segs: List[Tuple[float, float]] = []
+    cur = start
+    for gx0, gx1 in sorted(gaps):
+        if gx1 <= cur or gx0 >= end:
+            continue
+        if gx0 > cur:
+            segs.append((cur, min(gx0, end)))
+        cur = max(cur, gx1)
+        if cur >= end:
+            break
+    if cur < end:
+        segs.append((cur, end))
+    return segs
 
 
 def generate_gcode(
@@ -323,10 +335,10 @@ def generate_gcode(
     raft_y0 = cy - 40
     raft_x1 = cx + 45
     raft_y1 = cy + 40
-    tower_x = cx - 20
-    tower_y = cy - 20
+    tower_x = cx - 25
+    tower_y = cy - 25
     text_x = cx - 42
-    text_y = cy - 32
+    text_y = cy - 37
     lines.append(";" + _c["start_movement"])
     lines.append(";")
     lines.append("G90")
@@ -337,32 +349,44 @@ def generate_gcode(
     # --- Рафт (переэкструзия): подложка 90x80 с выступом спереди под надпись ---
     ev = _e_value(params, 60) * 1.25
     ev_increase = ev
+    # Буквы надписи «вырезаются» из подложки: в этих местах заливка не печатается
+    text_gaps = _text_gaps(FRONT_LABEL, text_x, text_y)
 
     lines.append(";" + _c["layer"] + " 1")
-    # Горизонталь (зигзаг, шаг 2 мм)
+    # Горизонталь (линии снизу вверх, шаг 2 мм; в зоне букв — сегменты)
     y = raft_y0
     while y < raft_y1:
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        y = y + 1
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)}")
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        y = y + 1
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
+        row_gaps = [(g[0], g[1]) for g in text_gaps if g[2] <= y < g[3]]
+        if row_gaps:
+            segs = _split_line(raft_x0, raft_x1, row_gaps)
+            for i, (sx0, sx1) in enumerate(segs):
+                lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(sx1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+                ev = ev + ev_increase
+                if i < len(segs) - 1:
+                    lines.append(f"G0 F{int(ts) * 60} X{_fmt(segs[i + 1][0], 2)} Y{_fmt(y, 2)}")
+        else:
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            ev = ev + ev_increase
+        y = y + 2
     # Возврат к началу рафта на высоту 2-го слоя
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
 
     lines.append(";" + _c["layer"] + " 2")
-    # Вертикаль (зигзаг, шаг 2 мм)
+    # Вертикаль (линии слева направо, шаг 2 мм; в зоне букв — сегменты)
     x = raft_x0
     while x < raft_x1:
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
-        x = x + 1
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)}")
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
-        x = x + 1
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
+        col_gaps = [(g[2], g[3]) for g in text_gaps if g[0] <= x < g[1]]
+        if col_gaps:
+            segs = _split_line(raft_y0, raft_y1, col_gaps)
+            for i, (sy0, sy1) in enumerate(segs):
+                lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(sy1, 2)} E{_fmt(ev, 5)}")
+                ev = ev + ev_increase
+                if i < len(segs) - 1:
+                    lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(segs[i + 1][0], 2)}")
+        else:
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
+            ev = ev + ev_increase
+        x = x + 2
     # Переход к стартовой позиции калибровки (слой 3)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
 
@@ -384,12 +408,6 @@ def generate_gcode(
         lines.append(f";{_c['layer']} {layer}")
 
         x, y = tower_x, tower_y
-
-        # Надпись «перед» — только на первом слое, в выступе подложки
-        if loopbigcount == 0:
-            _print_text(lines, ps, ts, corenermarker, FRONT_LABEL, text_x, text_y)
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
-            x, y = tower_x, tower_y
 
         # Маркер угла: нижний левый
         x, y = _corner_markers(lines, ps, corenermarker, 2, -1, -1, 1, 1, x, y)
