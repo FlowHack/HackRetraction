@@ -10,10 +10,10 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Optional
 
-from ..config import DEFAULT_CONFIG
-from ..logging import _LOGGER
-from ..orca_compat import orca, _SCRIPT_BASE
-from ..ui import HTML_PAGE
+from .config import DEFAULT_CONFIG
+from .logging import _LOGGER
+from .orca_compat import orca, _SCRIPT_BASE
+from .ui import HTML_PAGE
 from .engine import _HackRetractionEngine
 
 
