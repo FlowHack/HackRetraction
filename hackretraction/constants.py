@@ -125,7 +125,7 @@ PARAM_LIMITS: dict[str, tuple[float, float]] = {
     "startRetractionspeed": (1.0, 100.0),
     "incrementRetractionspeed": (1.0, 100.0),
     "tempStarthotend": (0.0, 500.0),
-    "tempIncrementhotend": (-50.0, 50.0),
+    "tempIncrementhotend": (0.0, 50.0),
     "tempBed": (0.0, 150.0),
     "speedFan": (0.0, 100.0),
     "speedFanIncrement": (0.0, 100.0),

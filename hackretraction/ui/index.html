@@ -1146,13 +1146,16 @@ m-125 -439 c241 -142 438 -260 438 -263 0 -5 -183 -114 -597 -356 l-262 -154
       <span class="brand-name">HackRetraction</span>
     </div>
     <div class="toolbar">
-      <button id="btn-help" class="btn" title="Help">?</button>
-      <button id="btn-pull" class="btn" data-text="btn.pull">Pull</button>
-      <button id="btn-reset" class="btn" data-text="btn.reset">Reset</button>
-      <button id="btn-load" class="btn" data-text="btn.load">Load</button>
-      <button id="btn-generate" class="btn primary" data-text="btn.generate">Generate</button>
-      <button id="btn-copy" class="btn" data-text="btn.copy">Copy</button>
-      <button id="btn-save" class="btn" data-text="btn.save">Save</button>
+      <button id="btn-help" class="btn help" title="Help">?</button>
+      <button id="btn-pull" class="btn" data-text="btn.pull" data-tip="t.pull">Pull parameters</button>
+      <button id="btn-load" class="btn" data-text="btn.load" data-tip="t.load">Load GCODE</button>
+      <div class="gen-wrap">
+        <button id="btn-generate" class="btn primary" data-text="btn.generate">Generate GCODE</button>
+        <div id="generate-menu" class="dropdown hidden">
+          <button id="gen-copy" class="dropdown-item" data-text="btn.copy">Copy GCODE</button>
+          <button id="gen-save" class="dropdown-item" data-text="btn.save">Save to file</button>
+        </div>
+      </div>
       <button id="btn-settings" class="btn icon" title="Settings">&#9881;</button>
       <button id="btn-support" class="btn support" title="Support project">&#9829;</button>
     </div>
@@ -1177,11 +1180,10 @@ m-125 -439 c241 -142 438 -260 438 -263 0 -5 -183 -114 -597 -356 l-262 -154
       </div>
     </section>
   </main>
-
-  <footer id="status" class="statusbar">
-    <span id="status-text"></span>
-  </footer>
 </div>
+
+<!-- Тосты (fixed, справа сверху) -->
+<div id="toast-container"></div>
 
 <!-- Тултип (fixed, позиционируется JS) -->
 <div id="tip-box" class="tip-text"></div>

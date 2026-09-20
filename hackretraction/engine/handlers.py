@@ -83,6 +83,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
 
         Возвращает (ключ статуса, параметры подстановки) при ошибке или None.
         """
+        negative = [key for key in _STEP_KEYS if float(params.get(key, 0) or 0) < 0]
+        if negative:
+            names = ", ".join(self._t("p." + key) for key in negative)
+            return "status.step_negative", {"params": names}
         non_zero = [key for key in _STEP_KEYS if float(params.get(key, 0) or 0) != 0]
         if len(non_zero) > 1:
             names = ", ".join(self._t("p." + key) for key in non_zero)

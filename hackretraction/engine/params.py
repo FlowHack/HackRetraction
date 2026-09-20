@@ -134,10 +134,11 @@ class ParamsMixin(CoreMixin):
 
         try:
             bundle = orca.host.preset_bundle()  # type: ignore[attr-defined]
-            presets = bundle.printers
 
             def _getv(key: str) -> Any:
-                value = presets.full_config_value(key)
+                # merged-конфиг всего пресета (printer+filament+print), а не
+                # только секции printers — иначе filament/print ключи не видны.
+                value = bundle.full_config_value(key)
                 return getattr(value, "value", value)
 
             # Параметры из PRESET_KEYS

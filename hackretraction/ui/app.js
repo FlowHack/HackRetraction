@@ -72,11 +72,15 @@ function buildForm(ui, params) {
       if (type === "textarea") {
         html += '<textarea data-param="' + key + '">' + esc(value) + "</textarea>";
       } else {
+        /* Шаги инкрементальных параметров не могут быть отрицательными. */
+        var min = STEP_KEYS.indexOf(key) >= 0 ? ' min="0"' : "";
+        html += '<span class="input-wrap">';
         html += '<input type="number" step="any" data-param="' + key +
-          '" value="' + esc(value) + '">';
+          '" value="' + esc(value) + '"' + min + ">";
         if (unit) {
           html += '<span class="unit">' + esc(unit) + "</span>";
         }
+        html += "</span>";
       }
       html += "</div>";
     }
@@ -138,7 +142,8 @@ function bindLivePreview() {
 
 /* --- Тултипы через JS (fixed, не обрезаются панелью) --- */
 function bindTips() {
-  var tips = document.querySelectorAll(".tip");
+  /* data-tip есть у «вопросиков» и у кнопок тулбара (pull/load). */
+  var tips = document.querySelectorAll("[data-tip]");
   for (var i = 0; i < tips.length; i++) {
     tips[i].addEventListener("mouseenter", showTip);
     tips[i].addEventListener("mouseleave", hideTip);
@@ -195,19 +200,19 @@ function renderTop(p) {
   var ird = num(p.incrementRetractiondistance, 0);
   var val = function (i) { return fmtNum(srd + ird * i); };
 
-  /* Длинные значения -> мельче шрифт, чтобы подписи не сливались. */
+  /* Длинные значения -> класс small (мельче шрифт, чтобы не сливались). */
   var maxLen = 0;
   for (var i = 0; i < 16; i++) {
     var len = val(i).length;
     if (len > maxLen) maxLen = len;
   }
-  var fs = maxLen > 4 ? 9 : 10;
+  var labelCls = maxLen > 4 ? "topview-label small" : "topview-label";
 
   /* Точка на линии рамки + подпись снаружи (pos — сторона квадрата). */
   var dot = function (x, y, v, pos) {
     return '<div class="topview-dot" style="left:' + x + '%;top:' + y + '%"></div>' +
-      '<div class="topview-label" data-pos="' + pos + '" style="left:' + x +
-      '%;top:' + y + '%;font-size:' + fs + 'px">' + v + "</div>";
+      '<div class="' + labelCls + '" data-pos="' + pos + '" style="left:' + x +
+      '%;top:' + y + '%">' + v + "</div>";
   };
 
   var h = '<div class="topview-square-wrap">';
@@ -234,7 +239,8 @@ function renderTop(p) {
   return h;
 }
 
-/* Вид сбоку: башня из блоков (column-reverse), подписи параметров справа. */
+/* Вид сбоку: монолитная башня из ячеек (column-reverse), подписи справа.
+   Точки на стыках ячеек — со стороны инкрементного параметра (справа). */
 function renderSide(p) {
   var nt = Math.max(1, Math.round(num(p.NumTests, 1)));
   var lt = Math.max(1, num(p.layersTest, 1));
@@ -249,6 +255,7 @@ function renderSide(p) {
   var showSpeed = irs !== 0;
   var showFan = fsi !== 0;
   var showTemp = tih !== 0;
+  var hasStep = showSpeed || showFan || showTemp;
 
   /* Высота блока пропорциональна слоям на тест (1.2px на слой). */
   var blockH = Math.max(6, Math.round(lt * 1.2));
@@ -256,7 +263,12 @@ function renderSide(p) {
   var h = '<div class="tower">';
   for (var i = 0; i < nt; i++) {
     h += '<div class="tower-row" style="height:' + blockH + 'px">';
-    h += '<div class="tower-block"></div>';
+    h += '<div class="tower-block">';
+    /* Точка на стыке ячеек (кроме верхнего блока), справа у параметров. */
+    if (hasStep && i < nt - 1) {
+      h += '<span class="tower-dot"></span>';
+    }
+    h += "</div>";
     h += '<div class="tower-labels">';
     if (showSpeed) {
       h += '<span class="lbl lbl-speed">' + fmtNum(srs + irs * i) + " мм/с</span>";
@@ -308,6 +320,10 @@ function applyStepLock(params) {
       /* Сбрасываем заблокированное поле, чтобы не было двух ненулевых шагов. */
       input.value = "0";
       params[key] = 0;
+    } else if (num(params[key], 0) < 0) {
+      /* Шаг не может быть отрицательным — обнуляем (и в форме, и в превью). */
+      input.value = "0";
+      params[key] = 0;
     }
     var tipEl = input.parentElement.querySelector(".tip");
     if (tipEl) {
@@ -325,23 +341,48 @@ function applyStepLock(params) {
   }
 }
 
-/* --- Статус --- */
-function showStatus(key, params) {
-  var el = document.getElementById("status-text");
+/* --- Тосты (вместо статусбара) --- */
+var TOAST_ERROR_KEYS = [
+  "status.error", "status.save_failed", "status.load_failed", "status.copy_failed",
+  "status.step_multiple", "status.step_none", "status.step_negative", "status.pull_fail"
+];
+
+function toastType(key) {
+  if (TOAST_ERROR_KEYS.indexOf(key) >= 0) return "error";
+  if (key === "status.generated" || key === "status.copied" || key === "status.saved" ||
+      key === "status.pull_ok" || key === "status.reset_ok" || key === "status.loaded") {
+    return "success";
+  }
+  return "info";
+}
+
+function showToast(key, params) {
+  var container = document.getElementById("toast-container");
+  if (!container) return;
   var t = text(key);
   if (params) {
     for (var k in params) {
       t = t.replace("{" + k + "}", String(params[k]));
     }
   }
-  el.textContent = t;
+  var toast = document.createElement("div");
+  toast.className = "toast " + toastType(key);
+  toast.textContent = t;
+  container.appendChild(toast);
+  /* Удаляем с анимацией через 4 секунды. */
+  window.setTimeout(function () {
+    toast.classList.add("out");
+    window.setTimeout(function () {
+      if (toast.parentElement) toast.parentElement.removeChild(toast);
+    }, 300);
+  }, 4000);
 }
 
 /* --- Копирование с fallback --- */
 function copyText(value, okKey) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(value).then(function () {
-      showStatus(okKey);
+      showToast(okKey);
     }, function () {
       legacyCopy(value, okKey);
     });
@@ -364,7 +405,7 @@ function legacyCopy(value, okKey) {
     ok = false;
   }
   document.body.removeChild(ta);
-  showStatus(ok ? okKey : "status.copy_failed");
+  showToast(ok ? okKey : "status.copy_failed");
 }
 
 /* --- Обработка сообщений Python --- */
@@ -383,28 +424,36 @@ function onMessage(msg) {
       break;
     case "generated":
       state.gcode = msg.gcode || "";
-      showStatus("status.generated");
+      showToast("status.generated");
+      /* Отложенное действие из меню «Сгенерировать GCODE». */
+      if (pendingAction === "copy") {
+        pendingAction = null;
+        copyText(state.gcode, "status.copied");
+      } else if (pendingAction === "save") {
+        pendingAction = null;
+        promptSave();
+      }
       break;
     case "pulled":
       state.params = msg.params || {};
       setFormValues(state.params);
       applyStepLock(state.params);
       renderPreview(state.params);
-      showStatus(msg.status || "status.pull_ok");
+      showToast(msg.status || "status.pull_ok");
       break;
     case "reset":
       state.params = msg.params || {};
       setFormValues(state.params);
       applyStepLock(state.params);
       renderPreview(state.params);
-      showStatus(msg.status || "status.reset_ok");
+      showToast(msg.status || "status.reset_ok");
       break;
     case "loaded":
       state.params = msg.params || {};
       setFormValues(state.params);
       applyStepLock(state.params);
       renderPreview(state.params);
-      showStatus("status.loaded");
+      showToast("status.loaded");
       break;
     case "settings_saved":
       if (msg.settings) {
@@ -417,35 +466,58 @@ function onMessage(msg) {
       }
       break;
     case "status":
-      showStatus(msg.key, msg.params);
+      showToast(msg.key, msg.params);
       break;
     case "error":
-      showStatus("status.error", { error: msg.message });
+      showToast("status.error", { error: msg.message });
       break;
   }
 }
 
 /* --- Кнопки --- */
+var pendingAction = null;
+
+function promptSave() {
+  var path = window.prompt(text("status.path_placeholder"), "");
+  if (path) {
+    post({ type: "save", path: path });
+  }
+}
+
+function toggleGenerateMenu() {
+  var menu = document.getElementById("generate-menu");
+  if (!menu) return;
+  var hidden = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden");
+  if (hidden) {
+    /* Закрытие по клику вне меню. */
+    window.setTimeout(function () {
+      document.addEventListener("click", closeGenerateMenu, true);
+    }, 0);
+  }
+}
+
+function closeGenerateMenu(e) {
+  var menu = document.getElementById("generate-menu");
+  if (!menu || menu.classList.contains("hidden")) return;
+  var wrap = document.getElementById("btn-generate");
+  if (e && wrap && (e.target === wrap || menu.contains(e.target))) return;
+  menu.classList.add("hidden");
+  document.removeEventListener("click", closeGenerateMenu, true);
+}
+
 function bindToolbar() {
   var map = {
     "btn-help": function () { openHelp(); },
     "btn-pull": function () { post({ type: "pull" }); },
-    "btn-reset": function () { post({ type: "reset" }); },
-    "btn-generate": function () {
+    "btn-generate": function () { toggleGenerateMenu(); },
+    "gen-copy": function () {
+      pendingAction = "copy";
       post({ type: "generate", params: collectParams() });
     },
-    "btn-copy": function () {
-      if (!state.gcode) {
-        showStatus("status.copy_empty");
-        return;
-      }
-      copyText(state.gcode, "status.copied");
-    },
-    "btn-save": function () {
-      var path = window.prompt(text("status.path_placeholder"), "");
-      if (path) {
-        post({ type: "save", path: path });
-      }
+    "gen-save": function () {
+      pendingAction = "save";
+      post({ type: "generate", params: collectParams() });
     },
     "btn-load": function () {
       var input = document.getElementById("file-input");

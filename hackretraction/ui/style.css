@@ -109,7 +109,7 @@ body {
   background: var(--panel-2);
   color: var(--fg);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.93em;
   white-space: nowrap;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -123,19 +123,65 @@ body {
   width: 30px;
   height: 30px;
   padding: 0;
-  font-size: 15px;
+  font-size: 1.07em;
   line-height: 1;
 }
+/* Кнопка помощи: красная, заметная. */
+.btn.help {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1em;
+  line-height: 1;
+  padding: 5px 11px;
+}
+.btn.help:hover { background: var(--accent-hover); color: #fff; }
 /* Кнопка поддержки: красная с белым сердечком (как в FlowSlice AI). */
 .btn.support {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-  font-size: 15px;
+  font-size: 1.07em;
   line-height: 1;
   padding: 5px 10px;
 }
 .btn.support:hover { background: var(--accent-hover); color: #fff; }
+
+/* --- Выпадающее меню «Сгенерировать GCODE» --- */
+.gen-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 60;
+  min-width: 180px;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dropdown.hidden { display: none; }
+.dropdown-item {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.dropdown-item:hover { background: var(--accent-soft); color: var(--accent); }
 
 /* --- Раскладка --- */
 .layout {
@@ -175,7 +221,7 @@ body {
   gap: 6px;
   padding: 5px 10px;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 0.9em;
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -183,7 +229,7 @@ body {
   user-select: none;
 }
 .sec-head .chevron {
-  font-size: 10px;
+  font-size: 0.72em;
   transition: transform 0.15s;
   color: var(--muted);
 }
@@ -191,42 +237,52 @@ body {
 .sec-body { padding: 6px 10px; }
 .sec.collapsed .sec-body { display: none; }
 
-/* Ровная сетка: label | input | unit — input всегда справа на одной линии. */
+/* Ровная сетка: label | input — единицы внутри поля (суффикс). */
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
 }
 .field label {
-  font-size: 12.5px;
+  font-size: 0.9em;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
-.field input[type="number"] {
+.input-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.input-wrap input[type="number"] {
   width: 84px;
   padding: 3px 6px;
+  padding-right: 30px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
   color: var(--fg);
-  font-size: 12.5px;
+  font-size: 0.9em;
   font-family: var(--font-mono);
 }
 /* Заблокированное поле шага (другой инкремент уже задан). */
-.field input[type="number"]:disabled {
+.input-wrap input[type="number"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.field .unit {
-  font-size: 11px;
+/* Единица измерения — суффикс внутри поля, справа. */
+.input-wrap .unit {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.72em;
   color: var(--muted);
-  min-width: 34px;
-  text-align: right;
+  pointer-events: none;
 }
 .field textarea {
   grid-column: 1 / -1;
@@ -238,7 +294,7 @@ body {
   background: var(--input-bg);
   color: var(--fg);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.86em;
 }
 
 /* --- Тултипы (вопросик) --- */
@@ -252,7 +308,7 @@ body {
   border: 1px solid var(--accent);
   color: var(--accent);
   background: transparent;
-  font-size: 10px;
+  font-size: 0.72em;
   font-weight: 700;
   cursor: help;
   flex-shrink: 0;
@@ -273,7 +329,7 @@ body {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   color: var(--fg);
-  font-size: 12px;
+  font-size: 0.86em;
   line-height: 1.4;
   text-align: left;
   white-space: normal;
@@ -301,7 +357,7 @@ body {
 .preview-block.top { flex: 1; }
 .preview-title {
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: 0.86em;
   font-weight: 600;
   color: var(--accent);
   text-transform: uppercase;
@@ -357,31 +413,34 @@ body {
 .topview-label {
   position: absolute;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 0.72em;
   color: var(--accent);
   white-space: nowrap;
   z-index: 3;
 }
+/* Длинные значения (больше 4 знаков) — мельче, чтобы не сливались. */
+.topview-label.small { font-size: 0.65em; }
 /* Подписи: сверху — над квадратом, снизу — под ним, по бокам — слева/справа. */
 .topview-label[data-pos="bottom"] { transform: translate(-50%, 0); margin-top: 9px; }
 .topview-label[data-pos="top"] { transform: translate(-50%, -100%); margin-top: -9px; }
 .topview-label[data-pos="left"] { transform: translate(-100%, -50%); margin-left: -9px; }
 .topview-label[data-pos="right"] { transform: translate(0, -50%); margin-left: 9px; }
+/* Надпись «перед» — с запасом под нижние подписи, чтобы не налезала. */
 .topview-front {
-  margin-top: 12px;
+  margin-top: 30px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.79em;
   letter-spacing: 1.5px;
   color: var(--muted);
   text-align: center;
   white-space: nowrap;
 }
 
-/* --- Превью: вид сбоку (башня блоков, column-reverse) --- */
+/* --- Превью: вид сбоку (монолитная башня ячеек, column-reverse) --- */
 .tower {
   display: flex;
   flex-direction: column-reverse;
-  align-items: flex-start;
+  align-items: center;
   width: 100%;
   max-height: 100%;
   overflow-y: auto;
@@ -390,26 +449,39 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  width: auto;
   flex-shrink: 0;
 }
+/* Монолитная ячейка: сплошная заливка, общая рамка колонны. */
 .tower-block {
+  position: relative;
   flex: 0 0 auto;
   width: 40px;
+  height: 100%;
   border-left: 1px solid var(--accent);
   border-right: 1px solid var(--accent);
   border-top: 1px solid var(--accent);
-  background: var(--accent-soft);
+  background: rgba(217, 83, 79, 0.28);
 }
 .tower-block:first-child { border-bottom: 1px solid var(--accent); }
+/* Точка на стыке ячеек — со стороны инкрементного параметра (справа). */
+.tower-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  right: -5px;
+  top: -4px;
+  z-index: 2;
+}
 .tower-labels {
-  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 3px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 0.68em;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -418,19 +490,38 @@ body {
 .tower-labels .lbl-temp { color: #ff9f3d; }
 .tower-labels .lbl-sep { color: var(--muted); }
 
-/* --- Статусбар --- */
-.statusbar {
+/* --- Тосты (вместо статусбара) --- */
+#toast-container {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 300;
   display: flex;
-  align-items: center;
-  padding: 4px 14px;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
-  flex-shrink: 0;
-  min-height: 22px;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 340px;
+  pointer-events: none;
 }
-#status-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast {
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-size: 0.86em;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.25s ease-out;
+}
+.toast.success { border-left-color: #3fb950; }
+.toast.error { border-left-color: var(--accent); background: rgba(217, 83, 79, 0.12); }
+.toast.info { border-left-color: #4a9eff; }
+.toast.out { opacity: 0; transform: translateX(20px); transition: opacity 0.3s, transform 0.3s; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
 /* --- Модалки --- */
 .modal-overlay {
@@ -468,7 +559,7 @@ body {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 1.15em;
   cursor: pointer;
 }
 .modal-close:hover { color: var(--accent); }
@@ -480,14 +571,14 @@ body {
   gap: 10px;
   margin-bottom: 10px;
 }
-.modal-body .field span { font-size: 13px; }
+.modal-body .field span { font-size: 0.93em; }
 .modal-body select {
   padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
   color: var(--fg);
-  font-size: 13px;
+  font-size: 0.93em;
 }
 .modal-body input[type="range"] {
   width: 180px;
@@ -513,7 +604,7 @@ body {
   margin-bottom: 10px;
 }
 .support-body p {
-  font-size: 13px;
+  font-size: 0.93em;
   color: var(--fg);
   line-height: 1.45;
   margin: 0 0 14px;
@@ -535,26 +626,26 @@ body {
 }
 .donate-card .d-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.93em;
   min-width: 110px;
 }
 .donate-card .d-value {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.86em;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .donate-card .d-actions { display: flex; gap: 6px; }
-.donate-card .btn { padding: 3px 9px; font-size: 12px; }
+.donate-card .btn { padding: 3px 9px; font-size: 0.86em; }
 
 /* --- Помощь --- */
-.help-body { font-size: 13px; line-height: 1.5; }
+.help-body { line-height: 1.5; }
 .help-body h3 {
   color: var(--accent);
-  font-size: 13.5px;
+  font-size: 0.96em;
   margin: 14px 0 4px;
 }
 .help-body h3:first-child { margin-top: 0; }
@@ -564,7 +655,7 @@ body {
 .help-body li { margin: 2px 0; }
 .help-source {
   margin-top: 12px;
-  font-size: 11.5px;
+  font-size: 0.82em;
   color: var(--muted);
   border-top: 1px solid var(--border);
   padding-top: 8px;

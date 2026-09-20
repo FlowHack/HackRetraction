@@ -227,7 +227,9 @@ def generate_gcode(
         f" {_c['table_nozzle_temp']:<11} {_c['table_fan_speed']}"
     )
     lines.append(";")
-    for test in range(nt):
+    # Таблица идёт сверху вниз (первая строка — верхний блок башни), чтобы
+    # читалась как «Variables by Height»: верх башни = максимальное значение.
+    for test in range(nt - 1, -1, -1):
         lines.append(
             f";{lt} layers      {_fmt(srs + irs * test, 2)}"
             f"      {_fmt(tsh + tih * test, 2)}"
