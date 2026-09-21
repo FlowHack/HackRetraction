@@ -19,7 +19,7 @@ from ..logging import _LOGGER
 PostSink = Callable[[Dict[str, Any]], None]
 
 # Параметры, хранящие строки (gcode), а не числа.
-_STRING_PARAM_KEYS = ("customGcode", "startGcode", "endGcode")
+_STRING_PARAM_KEYS = ("startGcode", "endGcode")
 
 
 class CoreMixin:

@@ -27,8 +27,6 @@ DEFAULT_PARAMS: dict[str, float | int | str] = {
     "dimensionY": 220,  # глубина стола, мм
     "layersTest": 25,  # слоёв на тест
     "NumTests": 15,  # количество тестов
-    # Пользовательский gcode (вставляется после стартового блока)
-    "customGcode": "",
     # Стартовый/конечный gcode принтера (редактируемые поля UI).
     # Пустая строка — использовать подтянутый из профиля или дефолт.
     "startGcode": "",
@@ -157,29 +155,6 @@ PLACEHOLDERS: dict[str, str] = {
     "{print_bed_max[0]*0.5+50}": "dimensionX*0.5+50",
     "{print_bed_max[0]*0.5+47}": "dimensionX*0.5+47",
     "{print_bed_max[1]}": "dimensionY",
-}
-
-# Лимиты валидации параметров (защита от мусорных значений).
-PARAM_LIMITS: dict[str, tuple[float, float]] = {
-    "startRetractiondistance": (0.0, 10.0),
-    "incrementRetractiondistance": (0.0, 10.0),
-    "startRetractionspeed": (1.0, 100.0),
-    "incrementRetractionspeed": (1.0, 100.0),
-    "tempStarthotend": (0.0, 500.0),
-    "tempIncrementhotend": (0.0, 50.0),
-    "tempBed": (0.0, 150.0),
-    "speedFan": (0.0, 100.0),
-    "speedFanIncrement": (0.0, 100.0),
-    "layerHeight": (0.05, 1.0),
-    "printSpeed": (1.0, 500.0),
-    "speedTravel": (1.0, 500.0),
-    "nozzleDiameter": (0.1, 2.0),
-    "filamentDiameter": (1.0, 4.0),
-    "extrusionMultiplier": (0.5, 2.0),
-    "dimensionX": (50.0, 1000.0),
-    "dimensionY": (50.0, 1000.0),
-    "layersTest": (1, 100),
-    "NumTests": (1, 100),
 }
 
 # Имя файла по умолчанию для экспорта.

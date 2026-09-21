@@ -39,4 +39,5 @@ EN_DEFAULT_COMMENTS: Dict[str, str] = {
     "start_movement": "Start Movement",
     "end_gcode": "End Gcode",
     "layer": "Layer",
+    "local_raft": " (local raft)",
 }

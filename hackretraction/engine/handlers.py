@@ -12,6 +12,7 @@ from ..constants import DEFAULT_END_GCODE, DEFAULT_PARAMS, DEFAULT_START_GCODE
 from ..errors import ExportError, ProfileError
 from ..i18n import I18N_COMMENTS
 from ..logging import _LOGGER
+from .core import _STRING_PARAM_KEYS
 from .export import ExportMixin
 from .generator import generate_gcode
 from .params import ParamsMixin, apply_placeholders, parse_gcode
@@ -78,7 +79,18 @@ class HandlersMixin(ParamsMixin, ExportMixin):
     # --- Генерация ---
 
     def _on_generate(self, message: Dict[str, Any]) -> None:
-        params = self._resolve_params_for_gen(message.get("params"))
+        incoming = message.get("params")
+        empty_field = self._validate_numeric_fields(incoming)
+        if empty_field is not None:
+            self._post(
+                {
+                    "type": "status",
+                    "key": "status.field_empty",
+                    "params": {"field": empty_field},
+                }
+            )
+            return
+        params = self._resolve_params_for_gen(incoming)
         step_error = self._validate_steps(params)
         if step_error is not None:
             self._post({"type": "status", "key": step_error[0], "params": step_error[1]})
@@ -98,6 +110,27 @@ class HandlersMixin(ParamsMixin, ExportMixin):
                 },
             }
         )
+
+    def _validate_numeric_fields(self, incoming: Any) -> Optional[str]:
+        """Проверяет входящие из JS параметры перед генерацией.
+
+        Все числовые ключи DEFAULT_PARAMS обязаны присутствовать и
+        конвертироваться в float — пустые поля JS в params не отправляет.
+        Возвращает ключ первого проблемного поля или None.
+        """
+        if not isinstance(incoming, dict):
+            return None
+        for key in DEFAULT_PARAMS:
+            if key in _STRING_PARAM_KEYS:
+                continue
+            value = incoming.get(key)
+            if value is None or str(value).strip() == "":
+                return key
+            try:
+                float(value)
+            except (TypeError, ValueError):
+                return key
+        return None
 
     def _validate_steps(
         self, params: Dict[str, Any]

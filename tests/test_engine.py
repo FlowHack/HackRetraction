@@ -5,6 +5,7 @@ import tempfile
 
 import pytest
 
+from hackretraction.constants import DEFAULT_PARAMS
 from hackretraction.engine import _HackRetractionEngine
 from hackretraction.engine.generator import generate_gcode
 from hackretraction.engine.params import _parse_printable_area, apply_placeholders, parse_gcode
@@ -25,7 +26,7 @@ def _generate(engine, params=None):
 def test_parse_gcode_roundtrip_en():
     """Сгенерированный gcode (en) парсится обратно в те же параметры."""
     engine = _engine()
-    params = {
+    overrides = {
         "dimensionX": 250.0, "dimensionY": 210.0,
         "startRetractiondistance": 0.8, "incrementRetractiondistance": 0.1,
         "startRetractionspeed": 5.0, "incrementRetractionspeed": 2.0,
@@ -34,9 +35,11 @@ def test_parse_gcode_roundtrip_en():
         "nozzleDiameter": 0.4, "layerHeight": 0.2, "filamentDiameter": 1.75,
         "extrusionMultiplier": 0.97, "layersTest": 25.0, "NumTests": 15.0,
     }
+    params = {**dict(DEFAULT_PARAMS), **overrides}
     msg = _generate(engine, params)
     parsed = parse_gcode(msg["gcode"])
-    for key, value in params.items():
+    # parse_gcode возвращает только числовые ключи секции «All inputs»
+    for key, value in overrides.items():
         assert parsed[key] == pytest.approx(value, abs=1e-6), key
 
 
@@ -44,7 +47,8 @@ def test_parse_gcode_ru_comments():
     """Парсер не зависит от языка комментариев gcode."""
     engine = _engine()
     engine._config["comment_lang"] = "ru"
-    msg = _generate(engine, {"NumTests": 3, "layersTest": 5})
+    params = {**dict(DEFAULT_PARAMS), "NumTests": 3, "layersTest": 5}
+    msg = _generate(engine, params)
     parsed = parse_gcode(msg["gcode"])
     assert parsed["NumTests"] == pytest.approx(3)
     assert parsed["layersTest"] == pytest.approx(5)
@@ -79,7 +83,8 @@ def test_apply_placeholders():
 def test_handle_generate_sets_gcode():
     """После generate движок хранит gcode и отдаёт статистику."""
     engine = _engine()
-    msg = _generate(engine, {"NumTests": 5, "layersTest": 10})
+    params = {**dict(DEFAULT_PARAMS), "NumTests": 5, "layersTest": 10}
+    msg = _generate(engine, params)
     assert msg["type"] == "generated"
     assert msg["stats"]["tests"] == 5
     assert msg["stats"]["layers"] == 10
@@ -235,10 +240,13 @@ def test_recalc_default_gcode():
 def test_generate_uses_edited_gcode():
     """Отредактированный пользователем gcode попадает в генерацию."""
     engine = _engine()
-    msg = _generate(
-        engine,
-        {"NumTests": 3, "layersTest": 5, "startGcode": "G28 ; мой старт"},
-    )
+    params = {
+        **dict(DEFAULT_PARAMS),
+        "NumTests": 3,
+        "layersTest": 5,
+        "startGcode": "G28 ; мой старт",
+    }
+    msg = _generate(engine, params)
     assert "G28 ; мой старт" in msg["gcode"]
 
 

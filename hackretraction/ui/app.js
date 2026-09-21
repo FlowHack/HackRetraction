@@ -130,6 +130,56 @@ function collectParams() {
   return params;
 }
 
+/* --- Валидация пустых числовых полей --- */
+function fieldLabel(key) {
+  var lbl = label("p." + key);
+  return lbl === "p." + key ? key : lbl;
+}
+
+function markFieldError(key) {
+  var el = document.querySelector('[data-param="' + key + '"]');
+  if (!el) return;
+  el.classList.add("field-error");
+  var field = el.closest ? el.closest(".field") : null;
+  if (field) field.classList.add("field-error");
+}
+
+function clearFieldError(key) {
+  var el = document.querySelector('[data-param="' + key + '"]');
+  if (!el) return;
+  el.classList.remove("field-error");
+  var field = el.closest ? el.closest(".field") : null;
+  if (field) field.classList.remove("field-error");
+}
+
+function validateNumericFields() {
+  var empty = [];
+  var inputs = document.querySelectorAll("[data-param]");
+  for (var i = 0; i < inputs.length; i++) {
+    var el = inputs[i];
+    /* Текстовые поля gcode и заблокированные поля пропускаем. */
+    if (el.tagName === "TEXTAREA" || el.tagName === "textarea") continue;
+    if (el.disabled) continue;
+    if (el.value.trim() === "") {
+      var key = el.getAttribute("data-param");
+      empty.push({ key: key, label: fieldLabel(key) });
+    }
+  }
+  return empty;
+}
+
+function requestGenerate() {
+  var empty = validateNumericFields();
+  if (empty.length === 0) return true;
+  var names = [];
+  for (var i = 0; i < empty.length; i++) {
+    names.push(empty[i].label);
+    markFieldError(empty[i].key);
+  }
+  showToast("status.field_empty", { field: names.join(", ") });
+  return false;
+}
+
 function setFormValues(params) {
   var inputs = document.querySelectorAll("[data-param]");
   for (var i = 0; i < inputs.length; i++) {
@@ -146,6 +196,8 @@ function bindLivePreview() {
   var inputs = document.querySelectorAll("[data-param]");
   for (var i = 0; i < inputs.length; i++) {
     inputs[i].addEventListener("input", function () {
+      /* Снятие подсветки ошибки при изменении поля. */
+      clearFieldError(this.getAttribute("data-param"));
       var params = collectParams();
       applyStepLock(params);
       renderPreview(params);
@@ -155,6 +207,10 @@ function bindLivePreview() {
       if (key === "dimensionX" || key === "dimensionY") {
         recalcDefaultsIfUnmodified(params);
       }
+    });
+    /* Снятие подсветки и по change (например, стрелки спиннера). */
+    inputs[i].addEventListener("change", function () {
+      clearFieldError(this.getAttribute("data-param"));
     });
   }
 }
@@ -393,7 +449,8 @@ function applyStepLock(params) {
 /* --- Тосты (вместо статусбара) --- */
 var TOAST_ERROR_KEYS = [
   "status.error", "status.save_failed", "status.load_failed", "status.copy_failed",
-  "status.step_multiple", "status.step_none", "status.step_negative", "status.pull_fail"
+  "status.step_multiple", "status.step_none", "status.step_negative", "status.pull_fail",
+  "status.field_empty"
 ];
 
 function toastType(key) {
@@ -538,7 +595,13 @@ function onMessage(msg) {
       }
       break;
     case "status":
-      showToast(msg.key, msg.params);
+      if (msg.key === "status.field_empty" && msg.params && msg.params.field) {
+        /* Вторая линия защиты (Python): подсветка поля по ключу из params. */
+        markFieldError(msg.params.field);
+        showToast(msg.key, { field: fieldLabel(msg.params.field) });
+      } else {
+        showToast(msg.key, msg.params);
+      }
       break;
     case "error":
       showToast("status.error", { error: msg.message });
@@ -585,10 +648,12 @@ function bindToolbar() {
     "btn-reset": function () { post({ type: "reset" }); },
     "btn-generate": function () { toggleGenerateMenu(); },
     "gen-copy": function () {
+      if (!requestGenerate()) return;
       pendingAction = "copy";
       post({ type: "generate", params: collectParams() });
     },
     "gen-save": function () {
+      if (!requestGenerate()) return;
       pendingAction = "save";
       post({ type: "generate", params: collectParams() });
     },

@@ -6,10 +6,13 @@
   а не зашиты жёстко;
 - таблица "Variables by Height" идёт от 0 до nt-1 (консистентно с кодом
   калибровки, в оригинале — в обратном порядке);
-- на слоях 3-4 поверх подложки печатается надпись FRONT_LABEL
-  («HACKRETRACTION») жирными периметрами палочного шрифта (2 слоя высоты,
-  2 честных периметра по нормалям через _offset_polyline) — ориентация
-  куба (в оригинале перед не помечался);
+- послойная схема (Z только растёт, без прыжков вниз):
+  слои 1-2 — общая подложка (рафт-зигзаг на всю область);
+  слой 3 — надпись FRONT_LABEL («HACKRETRACTION») жирными периметрами
+  палочного шрифта + локальная подложка под башней (квадрат 60x60,
+  центрирован по центру башни);
+  слой 4 — то же (текст завершён);
+  слои 5..N (N = 4 + nt*lt) — калибровочная башня;
 - перемещения — в АБСОЛЮТНЫХ координатах (G90): слайсеры корректно
   отображают превью только без G91. Подложка, надпись и башня
   центрируются относительно стола и никогда не разъезжаются. Штрихи букв
@@ -18,7 +21,9 @@
   эквидистант;
 - подложка — сплошной зигзаг 90x80 с выступом спереди (Y-) под надпись:
   слои 1-2 заливаются от края до края без вырезов, буквы печатаются
-  поверх подложки выпуклыми линиями (не вырезаются из неё).
+  поверх подложки выпуклыми линиями (не вырезаются из неё);
+- переезды между фазами — единый паттерн: ретракт → G0 XY → G0 Z →
+  сброс счётчика экструдера (G92 E0) на старте следующей фазы.
 """
 
 from __future__ import annotations
@@ -189,7 +194,8 @@ def _stroke_text(
     start_y: float,
     ps: float,
     ts: float,
-) -> None:
+    start_retracted: bool = False,
+) -> bool:
     """Печать текста жирными периметрами (2 стенки по нормалям, G90).
 
     Скелет буквы переводится в абсолютные координаты стола (ось Y
@@ -197,15 +203,20 @@ def _stroke_text(
     Вокруг каждого штриха строится U-образная петля из двух эквидистант
     (_offset_polyline на ±пол-сопла), которая печатается как цельный
     периметр. Между штрихами и буквами — ретракт.
+
+    G90/M83/G92 E0 эмитятся один раз в generate_gcode перед первым
+    вызовом — здесь они не дублируются. Сопло остаётся втянутым после
+    последнего штриха (двойной ретракт не выполняется).
+
+    Возвращает конечное состояние is_retracted (True — сопло втянуто).
     """
-    lines.append("G90")
-    lines.append("M83 ; Жёсткое подтверждение относительной экструзии после G90")
-    lines.append("G92 E0 ; Сброс счетчика экструдера")
+    srd = float(params["startRetractiondistance"])
+    srs = float(params["startRetractionspeed"])
     nd = float(params["nozzleDiameter"])
     offset = nd / 2.0  # Смещение на пол-сопла (дает суммарно 2 периметра толщины)
 
     current_x = start_x
-    is_retracted = False
+    is_retracted = start_retracted
 
     for ch in text.upper():
         strokes = _STROKE_FONT.get(ch)
@@ -230,27 +241,149 @@ def _stroke_text(
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(py, 2)}")
 
             if is_retracted:
-                lines.append("G1 F1800 E0.50 ; Безопасная скорость ретракта (30 мм/с)")
+                lines.append(f"G1 F{int(srs * 60)} E+{_fmt(srd, 2)}")
                 is_retracted = False
 
-            # 5. Печатаем периметр буквы
+            # 5. Печатаем периметр буквы (50% от основной скорости)
             for tx, ty in full_path[1:]:
                 dx, dy = tx - px, ty - py
                 dist = (dx**2 + dy**2) ** 0.5
                 lines.append(
-                    f"G1 F{int(ps * 60)} X{_fmt(tx, 2)} Y{_fmt(ty, 2)} "
+                    f"G1 F{int(ps * 60 / 2)} X{_fmt(tx, 2)} Y{_fmt(ty, 2)} "
                     f"E{_fmt(_e_value(params, dist), 5)}"
                 )
                 px, py = tx, ty
 
             # Делаем ретракт перед переходом к следующему штриху/букве
-            lines.append("G1 F1800 E-0.50 ; Безопасная скорость ретракта (30 мм/с)")
+            lines.append(f"G1 F{int(srs * 60)} E-{_fmt(srd, 2)}")
             is_retracted = True
 
         current_x += 6
 
-    if is_retracted:
-        lines.append("G1 F1800 E0.50 ; Безопасная скорость ретракта (30 мм/с)")
+    return is_retracted
+
+
+def _local_raft(
+    lines: List[str],
+    params: Dict[str, float],
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    ps: float,
+    ev_start: float,
+    vertical: bool = False,
+) -> float:
+    """Локальная подложка под башней: зигзаг в ограниченной области.
+
+    Режим M83 (относительная экструзия), перед началом — G92 E0.
+    E-приращения — _e_value(params, длина_линии) * 1.25, шаг 1 мм,
+    скорость ps*60/2 (как у общей подложки). vertical=True — линии
+    идут по Y (как слой 2 общей подложки), иначе — по X (слой 1).
+    Возвращает конечное значение ev.
+    """
+    ev = ev_start
+    if not vertical:
+        # Горизонтальные линии (по X), переходы по краю — 1 мм по Y
+        ev_x_inc = _e_value(params, x1 - x0) * 1.25
+        ev_y_inc_1mm = _e_value(params, 1.0) * 1.25
+        y = y0
+        while y <= y1:
+            ev += ev_x_inc
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            y += 1
+            if y > y1:
+                break
+            ev += ev_y_inc_1mm
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+
+            ev += ev_x_inc
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            y += 1
+            if y > y1:
+                break
+            ev += ev_y_inc_1mm
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+    else:
+        # Вертикальные линии (по Y), переходы по краю — 1 мм по X
+        ev_y_inc = _e_value(params, y1 - y0) * 1.25
+        ev_x_inc_1mm = _e_value(params, 1.0) * 1.25
+        x = x0
+        while x <= x1:
+            ev += ev_y_inc
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev, 5)}")
+            x += 1
+            if x > x1:
+                break
+            ev += ev_x_inc_1mm
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev, 5)}")
+
+            ev += ev_y_inc
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev, 5)}")
+            x += 1
+            if x > x1:
+                break
+            ev += ev_x_inc_1mm
+            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev, 5)}")
+    return ev
+
+
+def _tower_layer(
+    lines: List[str],
+    params: Dict[str, float],
+    test_idx: int,
+    layer_in_test: int,
+    ev: float,
+    ps: float,
+    ts: float,
+    x: float,
+    y: float,
+    z: float,
+) -> Tuple[float, float, float]:
+    """Один слой калибровочной башни.
+
+    Маркеры углов и команды M106/M104 (вентилятор/температура) эмитятся
+    только на первом слое теста (layer_in_test == 0); остальные слои —
+    только 4 стороны. x, y — якорь башни (tower_x, tower_y).
+    Возвращает (x, y, z) после слоя.
+    """
+    lh = float(params["layerHeight"])
+    fs = float(params["speedFan"])
+    fsi = float(params["speedFanIncrement"])
+    tsh = float(params["tempStarthotend"])
+    tih = float(params["tempIncrementhotend"])
+    corenermarker = _e_value(params, 1)
+
+    if layer_in_test == 0:
+        # Вентилятор и температура на каждый тест
+        lines.append(f"M106 S{_fmt((fs + fsi * test_idx) * 255 / 100, 0)}")
+        lines.append(f"M104 S{_fmt(tsh + tih * test_idx, 0)}")
+
+    if layer_in_test == 0:
+        # Маркер угла: нижний левый
+        x, y = _corner_markers(lines, ps, corenermarker, 2, -1, -1, x, y)
+    # Bottom (перед): значения 0..3 (движение X+, втягивание Y-)
+    x, y = _side(lines, params, 0, "X", 1, "Y", -1, test_idx, ev, ps, ts, x, y)
+    if layer_in_test == 0:
+        # Маркер угла: нижний правый
+        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, -1, x, y)
+    # Right: значения 4..7 (движение Y+, втягивание X+)
+    x, y = _side(lines, params, 4, "Y", 1, "X", 1, test_idx, ev, ps, ts, x, y)
+    if layer_in_test == 0:
+        # Маркер угла: верхний правый
+        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, 1, x, y)
+    # Top (зад): значения 8..11 (движение X-, втягивание Y+)
+    x, y = _side(lines, params, 8, "X", -1, "Y", 1, test_idx, ev, ps, ts, x, y)
+    if layer_in_test == 0:
+        # Маркер угла: верхний левый
+        x, y = _corner_markers(lines, ps, corenermarker, 1, -1, 1, x, y)
+    # Left: значения 12..15 (движение Y-, втягивание X-)
+    x, y = _side(lines, params, 12, "Y", -1, "X", -1, test_idx, ev, ps, ts, x, y)
+
+    # Подъём на высоту следующего слоя
+    z = z + lh
+    lines.append(f"G1 Z{_fmt(z, 2)}")
+    return x, y, z
 
 
 def generate_gcode(
@@ -297,7 +430,6 @@ def generate_gcode(
     nd = float(params["nozzleDiameter"])
     fd = float(params["filamentDiameter"])
     em = float(params["extrusionMultiplier"])
-    custom_gcode = str(params.get("customGcode", "")).strip()
 
     lines: List[str] = []
 
@@ -392,12 +524,10 @@ def generate_gcode(
     lines.append(";")
     lines.append(";")
 
-    # --- Start Gcode (из профиля принтера или дефолт) + пользовательский ---
+    # --- Start Gcode (из профиля принтера или дефолт) ---
     lines.append(";" + _c["start_gcode"])
     if start_gcode:
         lines.append(start_gcode.strip())
-    if custom_gcode:
-        lines.append(custom_gcode)
     lines.append(";")
     lines.append(";")
 
@@ -413,6 +543,12 @@ def generate_gcode(
     text_x = cx - 42
     text_y = cy - 32  # базовая линия текста; буквы растут вверх до Y=cy-39,
     # оставаясь внутри подложки (её передний край — cy-40)
+    # Локальная подложка под башней: квадрат 60x60, центрирован по центру
+    # башни (cx, cy); башня 50x50 — подложка выступает на 5 мм с каждой стороны
+    lraft_x0 = cx - 30
+    lraft_y0 = cy - 30
+    lraft_x1 = cx + 30
+    lraft_y1 = cy + 30
     lines.append(";" + _c["start_movement"])
     lines.append(";")
     lines.append("M82 ; Включаем абсолютную экструзию для подложки")
@@ -474,87 +610,59 @@ def generate_gcode(
         ev += ev_x_inc_1mm
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
 
-    # Переход к стартовой позиции калибровки (слой 3)
-    # Физический ретракт перед переездом к башне
+    # Переход рафт → буквы (слой 3): физический ретракт → G0 XY → G0 Z
     ev_retract = ev - 2.0
     lines.append(f"G1 F1800 E{_fmt(ev_retract, 5)}")
-    lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
-    # Возврат пластика после переезда (M82: абсолютная позиция E)
-    lines.append(f"G1 F1800 E{_fmt(ev, 5)}")
-
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
+    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
     # Относительная экструзия (координаты — абсолютные, G90)
     lines.append("M83")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
 
-    # --- Надпись HACKRETRACTION (слои 3-4, 2 периметра по нормалям) ---
-    for layer_offset in range(2):
-        current_z = lh * (3 + layer_offset)
-        lines.append(f";Layer {3 + layer_offset} (Text)")
-        lines.append(f"G1 Z{_fmt(current_z, 2)}")
+    # --- Слой 3: буквы → переезд → локальная подложка ---
+    lines.append(f";{_c['layer']} 3 (Text)")
+    # Сопло входит втянутым (start_retracted=True) и остаётся втянутым
+    # после последнего штриха — переезд к подложке безопасен
+    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts, start_retracted=True)
 
-        # Строим текст в абсолютных координатах без циклов дублирования
-        _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts)
+    # Переход буквы → локальная подложка (слой 3): сопло втянуто, Z не меняется
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
+    lines.append("G92 E0 ; Сброс счетчика экструдера")
+    lines.append(f";{_c['layer']} 3{_c['local_raft']}")
+    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, 0.0)
 
-    # ВОЗВРАТ НА ВЫСОТУ 3 СЛОЯ ДЛЯ СТАРТА БАШНИ
-    lines.append("G90")
-    lines.append("M83 ; Блокируем переопределение абсолютной экструзии от G90")
-    lines.append("G92 E0")
-    # СНАЧАЛА едем в центр (безопасная зона)
+    # --- Слой 4: буквы → переезд → локальная подложка ---
+    # Переход локальная подложка → буквы (слой 4): ретракт → G0 XY → G0 Z
+    lines.append(f"G1 F{int(srs * 60)} E-{_fmt(srd, 2)}")
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
+    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 4, 2)}")
+    lines.append(f";{_c['layer']} 4 (Text)")
+    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts, start_retracted=True)
+
+    # Переход буквы → локальная подложка (слой 4): сопло втянуто, Z не меняется
+    lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
+    lines.append("G92 E0 ; Сброс счетчика экструдера")
+    lines.append(f";{_c['layer']} 4{_c['local_raft']}")
+    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, 0.0, vertical=True)
+
+    # --- Переход локальная подложка → башня (слой 5) ---
+    lines.append(f"G1 F{int(srs * 60)} E-{_fmt(srd, 2)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
-    # ЗАТЕМ опускаемся на рабочую высоту
-    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
+    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 5, 2)}")
+    lines.append("G92 E0 ; Сброс счетчика экструдера")
 
-    # --- Калибровка ---
+    # --- Калибровочная башня (слои 5..N, N = 4 + nt*lt) ---
     ev = _e_value(params, 10)
-    corenermarker = _e_value(params, 1)
-    loopbigcount = 0
-    layer = 3
-    inner_layers = lt - 1
-    z = lh * 3
-
-    for _ in range(nt):
-        # Вентилятор и температура на каждый тест
-        lines.append(f"M106 S{_fmt((fs + fsi * loopbigcount) * 255 / 100, 0)}")
-        lines.append(f"M104 S{_fmt(tsh + tih * loopbigcount, 0)}")
-        lines.append(f";{_c['layer']} {layer}")
-
-        x, y = tower_x, tower_y
-
-        # Маркер угла: нижний левый
-        x, y = _corner_markers(lines, ps, corenermarker, 2, -1, -1, x, y)
-        # Bottom (перед): значения 0..3 (движение X+, втягивание Y-)
-        x, y = _side(lines, params, 0, "X", 1, "Y", -1, loopbigcount, ev, ps, ts, x, y)
-        # Маркер угла: нижний правый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, -1, x, y)
-        # Right: значения 4..7 (движение Y+, втягивание X+)
-        x, y = _side(lines, params, 4, "Y", 1, "X", 1, loopbigcount, ev, ps, ts, x, y)
-        # Маркер угла: верхний правый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, 1, x, y)
-        # Top (зад): значения 8..11 (движение X-, втягивание Y+)
-        x, y = _side(lines, params, 8, "X", -1, "Y", 1, loopbigcount, ev, ps, ts, x, y)
-        # Маркер угла: верхний левый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, -1, 1, x, y)
-        # Left: значения 12..15 (движение Y-, втягивание X-)
-        x, y = _side(lines, params, 12, "Y", -1, "X", -1, loopbigcount, ev, ps, ts, x, y)
-
-        # Подъём на высоту слоя
-        z = z + lh
-        lines.append(f"G1 Z{_fmt(z, 2)}")
-        layer = layer + 1
-
-        # Внутренние слои теста (без маркеров углов)
-        for _ in range(inner_layers):
+    z = lh * 5
+    layer = 5
+    for test_idx in range(nt):
+        for layer_in_test in range(lt):
             lines.append(f";{_c['layer']} {layer}")
-            x, y = tower_x, tower_y
-            x, y = _side(lines, params, 0, "X", 1, "Y", -1, loopbigcount, ev, ps, ts, x, y)
-            x, y = _side(lines, params, 4, "Y", 1, "X", 1, loopbigcount, ev, ps, ts, x, y)
-            x, y = _side(lines, params, 8, "X", -1, "Y", 1, loopbigcount, ev, ps, ts, x, y)
-            x, y = _side(lines, params, 12, "Y", -1, "X", -1, loopbigcount, ev, ps, ts, x, y)
-            z = z + lh
-            lines.append(f"G1 Z{_fmt(z, 2)}")
-            layer = layer + 1
-
-        loopbigcount = loopbigcount + 1
+            _, _, z = _tower_layer(
+                lines, params, test_idx, layer_in_test, ev, ps, ts,
+                tower_x, tower_y, z,
+            )
+            layer += 1
 
     # --- End Game (из профиля принтера или дефолт) ---
     if end_gcode:

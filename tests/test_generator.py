@@ -39,7 +39,6 @@ ETALON_PARAMS: dict[str, float] = {
     "dimensionY": 320.0,
     "layersTest": 25.0,
     "NumTests": 15.0,
-    "customGcode": "",
 }
 
 
@@ -89,8 +88,9 @@ def test_calibration_geometry() -> None:
     gcode = _gcode()
     lines = gcode.splitlines()
     nt, lt = 15, 25
-    # по одному G1 Z на каждый слой теста + стартовый подъём + 2 слоя текста
-    assert sum(1 for l in lines if l.startswith("G1 Z")) == nt * lt + 3
+    # по одному G1 Z на каждый слой башни + стартовый подъём (G1 Z2);
+    # переходы между фазами — G0 Z (рафт->буквы, подложка->буквы, подложка->башня)
+    assert sum(1 for l in lines if l.startswith("G1 Z")) == nt * lt + 1
     # M106/M104 — по одному на тест
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
@@ -111,37 +111,42 @@ def test_front_label_printed() -> None:
     i2 = lines.index(";Layer 2")
     g0_zigzag = [l for l in lines[i1:i2] if l.startswith("G0") and "Z" not in l]
     assert len(g0_zigzag) == 0
+    # слой 2: переходы по краю — тоже рабочие G1, холостых G0 нет
     i3 = next(
         i for i, l in enumerate(lines[i2:], i2)
-        if l.startswith("G0 F9000 X135.00 Y135.00 Z0.60")
+        if l.startswith("G0 F9000 X118.00 Y128.00")
     )
-    # слой 2: переходы по краю — тоже рабочие G1, холостых G0 нет
     assert not any(l.startswith("G0") for l in lines[i2:i3])
     # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
     # offset = nd/2 = 0.2; наружный контур X118.2, внутренний X117.8
     assert "G0 F9000 X118.20 Y128.00" in gcode
     # U-петля: вниз по наружному контуру (dist 7 -> E0.16128),
-    # поперёк (dist 0.4 -> E0.00922), вверх по внутреннему
-    assert "G1 F4200 X118.20 Y121.00 E0.16128" in gcode
-    assert "G1 F4200 X117.80 Y121.00 E0.00922" in gcode
-    assert "G1 F4200 X117.80 Y128.00 E0.16128" in gcode
-    # ретракт между штрихами буквы и возврат пластика (безопасная скорость)
-    assert "G1 F1800 E-0.50" in gcode
-    assert "G1 F1800 E0.50" in gcode
+    # поперёк (dist 0.4 -> E0.00922), вверх по внутреннему;
+    # скорость периметра — 50% от основной (ps=70 -> F2100)
+    assert "G1 F2100 X118.20 Y121.00 E0.16128" in gcode
+    assert "G1 F2100 X117.80 Y121.00 E0.00922" in gcode
+    assert "G1 F2100 X117.80 Y128.00 E0.16128" in gcode
+    # ретракт между штрихами буквы — параметризованный (srd=0.8, srs=5.0)
+    assert "G1 F300 E-0.80" in gcode
+    assert "G1 F300 E+0.80" in gcode
     # второй штрих H: (0,3.5)->(5,3.5) -> abs (118,124.5)->(123,124.5),
     # наружный контур Y124.7, внутренний Y124.3
     assert "G0 F9000 X118.00 Y124.70" in gcode
-    assert "G1 F4200 X123.00 Y124.70 E0.11520" in gcode
+    assert "G1 F2100 X123.00 Y124.70 E0.11520" in gcode
     # старые смещения стартовой точки больше не используются
     assert "G0 F9000 X118.40 Y127.60" not in gcode
     assert "G0 F9000 X118.40 Y128.00" not in gcode
     assert "G0 F9000 X118.00 Y127.60" not in gcode
-    # текст печатается на 2 слоях (Z0.60 и Z0.80), затем возврат на Z0.60
-    assert "G1 Z0.60" in gcode and "G1 Z0.80" in gcode
-    # возврат к башне: СНАЧАЛА XY в центр, ЗАТЕМ опускание Z (безопасная зона)
+    # текст печатается на 2 слоях (Z0.60 и Z0.80), переходы — G0 Z
+    assert "G0 F9000 Z0.60" in gcode and "G0 F9000 Z0.80" in gcode
+    # локальная подложка под башней: 2 слоя, область [130,190]x[130,190]
+    assert ";Layer 3 (local raft)" in gcode
+    assert ";Layer 4 (local raft)" in gcode
+    # башня стартует с Z=1.00 (5*lh), слой 5; переход — СНАЧАЛА XY, ЗАТЕМ Z
     i_xy = lines.index("G0 F9000 X135.00 Y135.00")
-    i_z = lines.index("G0 F9000 Z0.60")
+    i_z = lines.index("G0 F9000 Z1.00")
     assert i_xy < i_z
+    assert ";Layer 5" in gcode
 
 
 def test_all_inputs_section() -> None:
@@ -153,7 +158,7 @@ def test_all_inputs_section() -> None:
 
 def test_comments_localization_ru() -> None:
     """Комментарии локализуются, команды остаются неизменными."""
-    params = {**ETALON_PARAMS, "customGcode": ""}
+    params = {**ETALON_PARAMS}
     g_en = generate_gcode(params, ";START", ";END")
     g_ru = generate_gcode(params, ";START", ";END", comments=I18N_COMMENTS["ru"])
     assert ";Дистанция ретракции (вид сверху)" in g_ru

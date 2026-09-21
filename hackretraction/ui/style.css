@@ -299,6 +299,19 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   opacity: 0.45;
   cursor: not-allowed;
 }
+/* Поле с ошибкой валидации: красная рамка, подсветка и акцентный лейбл. */
+.field.field-error label { color: var(--accent); }
+.field.field-error .input-wrap input {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
+  background: rgba(217, 83, 79, 0.08);
+}
+/* Fallback: класс на самом input (если .field-контейнер недоступен). */
+.input-wrap input.field-error {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
+  background: rgba(217, 83, 79, 0.08);
+}
 /* Единица измерения — суффикс внутри поля, слева от стрелок спиннера. */
 .input-wrap .unit {
   position: absolute;
