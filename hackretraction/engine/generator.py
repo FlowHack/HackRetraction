@@ -576,7 +576,7 @@ def generate_gcode(
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
 
     # Физический ретракт перед переездом на 2-й слой
-    ev_retract = ev - 2.0
+    ev_retract = ev - srd
     lines.append(f"G1 F1800 E{_fmt(ev_retract, 5)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
     lines.append(f"G1 F1800 E{_fmt(ev, 5)}")
@@ -603,7 +603,7 @@ def generate_gcode(
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
 
     # Переход рафт → буквы (слой 3): физический ретракт → G0 XY → G0 Z
-    ev_retract = ev - 2.0
+    ev_retract = ev - srd
     lines.append(f"G1 F1800 E{_fmt(ev_retract, 5)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
     lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
@@ -620,6 +620,9 @@ def generate_gcode(
     # Переход буквы → локальная подложка (слой 3): сопло втянуто, Z не меняется
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
+    # Сопло физически втянуто на srd после текста — возвращаем филамент,
+    # иначе первая линия подложки печатается «вхолостую»
+    lines.append(f"G1 F{int(srs * 60)} E{_fmt(srd, 2)}")
     lines.append(f";{_c['layer']} 3{_c['local_raft']}")
     _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps)
 
@@ -634,6 +637,9 @@ def generate_gcode(
     # Переход буквы → локальная подложка (слой 4): сопло втянуто, Z не меняется
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
+    # Сопло физически втянуто на srd после текста — возвращаем филамент,
+    # иначе первая линия подложки печатается «вхолостую»
+    lines.append(f"G1 F{int(srs * 60)} E{_fmt(srd, 2)}")
     lines.append(f";{_c['layer']} 4{_c['local_raft']}")
     _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, vertical=True)
 
@@ -642,6 +648,9 @@ def generate_gcode(
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
     lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 5, 2)}")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
+    # Сопло физически втянуто на srd после ретракта — возвращаем филамент,
+    # иначе первый маркер угла и первая линия печатаются «вхолостую»
+    lines.append(f"G1 F{int(srs * 60)} E{_fmt(srd, 2)}")
 
     # --- Калибровочная башня (слои 5..N, N = 4 + nt*lt) ---
     ev = _e_value(params, 10)
