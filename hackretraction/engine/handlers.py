@@ -202,12 +202,15 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         gcode = apply_placeholders(default, params)
         params[field] = gcode
         self.set_params(params)
+        # Заполняем ОБА gcode-поля резолвнутыми значениями, чтобы JS
+        # setFormValues не затёр пустое второе поле (баг «пропадает gcode»).
+        params = self._fill_gcode_params(self.get_params())
         self._post(
             {
                 "type": "default_gcode_set",
                 "field": field,
                 "gcode": gcode,
-                "params": self.get_params(),
+                "params": params,
             }
         )
 

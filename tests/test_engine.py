@@ -188,6 +188,25 @@ def test_default_gcode_button():
     assert msg["field"] == "startGcode"
     assert "M190" in msg["gcode"]
     assert msg["params"]["startGcode"] == msg["gcode"]
+    # Регрессия: второе gcode-поле не должно пропадать (быть пустым)
+    assert msg["params"]["endGcode"] != ""
+    assert "M104" in msg["params"]["endGcode"]
+
+
+def test_default_gcode_keeps_other_field():
+    """Кнопка «По умолчанию» на одном поле не затирает другое."""
+    engine = _engine()
+    engine.set_params({"dimensionX": 250.0})
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "default_gcode", "field": "endGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "default_gcode_set"
+    assert msg["field"] == "endGcode"
+    assert "M104" in msg["gcode"]
+    assert msg["params"]["endGcode"] == msg["gcode"]
+    assert msg["params"]["startGcode"] != ""
+    assert "M190" in msg["params"]["startGcode"]
 
 
 def test_default_gcode_unknown_field_logs_only():
