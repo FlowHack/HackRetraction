@@ -345,6 +345,8 @@ def generate_gcode(
     # оставаясь внутри подложки (её передний край — cy-40)
     lines.append(";" + _c["start_movement"])
     lines.append(";")
+    lines.append("M82 ; Включаем абсолютную экструзию для подложки")
+    lines.append("G92 E0 ; Сбрасываем счетчик экструдера")
     lines.append("G90")
     lines.append("G1 Z2")
     lines.append(f"G1 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh, 2)}")
@@ -412,8 +414,10 @@ def generate_gcode(
 
     # ВОЗВРАТ НА ВЫСОТУ 3 СЛОЯ ДЛЯ СТАРТА БАШНИ
     lines.append("G90")
-    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
+    # СНАЧАЛА едем в центр (безопасная зона)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
+    # ЗАТЕМ опускаемся на рабочую высоту
+    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
 
     # --- Калибровка ---
     ev = _e_value(params, 10)

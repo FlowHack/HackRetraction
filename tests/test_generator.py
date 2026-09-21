@@ -57,6 +57,10 @@ def test_start_movement_position() -> None:
     # dx=320 -> рафт стартует с (320/2-45, 320/2-40) = (115.0, 120.0).
     gcode = _gcode()
     assert "G1 F9000 X115.00 Y120.00 Z0.20" in gcode
+    # абсолютная экструзия для подложки: M82 + сброс счётчика до рафта
+    assert "M82 ; Включаем абсолютную экструзию для подложки" in gcode
+    assert "G92 E0 ; Сбрасываем счетчик экструдера" in gcode
+    assert gcode.index("M82") < gcode.index(";Layer 1")
 
 
 def test_raft_extrusion_values() -> None:
@@ -126,7 +130,10 @@ def test_front_label_printed() -> None:
     assert "G0 F9000 X0.00 Y-7.00" in gcode
     # текст печатается на 2 слоях (Z0.60 и Z0.80), затем возврат на Z0.60
     assert "G1 Z0.60" in gcode and "G1 Z0.80" in gcode
-    assert "G0 F9000 Z0.60" in gcode
+    # возврат к башне: СНАЧАЛА XY в центр, ЗАТЕМ опускание Z (безопасная зона)
+    i_xy = lines.index("G0 F9000 X135.00 Y135.00")
+    i_z = lines.index("G0 F9000 Z0.60")
+    assert i_xy < i_z
 
 
 def test_all_inputs_section() -> None:
