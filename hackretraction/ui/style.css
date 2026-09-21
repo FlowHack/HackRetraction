@@ -296,6 +296,10 @@ body {
   font-family: var(--font-mono);
   font-size: 0.86em;
 }
+/* Поля стартового/конечного gcode: высота в 3 раза больше обычной textarea. */
+.field textarea.gcode-field {
+  min-height: 168px;
+}
 /* Кнопка «По умолчанию» у полей стартового/конечного gcode. */
 .btn-default-gcode {
   grid-column: 1 / -1;

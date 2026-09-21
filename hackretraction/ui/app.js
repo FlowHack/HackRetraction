@@ -72,7 +72,9 @@ function buildForm(ui, params) {
         html += '<span class="tip" tabindex="0" data-tip="' + esc(tip) + '">?</span>';
       }
       if (type === "textarea") {
-        html += '<textarea data-param="' + key + '">' + esc(value) + "</textarea>";
+        /* Полям стартового/конечного gcode — увеличенная высота (см. .gcode-field). */
+        var taClass = (key === "startGcode" || key === "endGcode") ? ' class="gcode-field"' : "";
+        html += '<textarea' + taClass + ' data-param="' + key + '">' + esc(value) + "</textarea>";
         /* Кнопка «По умолчанию» для стартового/конечного gcode. */
         if (key === "startGcode" || key === "endGcode") {
           html += '<button type="button" class="btn btn-default-gcode" ' +
