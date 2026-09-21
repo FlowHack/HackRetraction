@@ -6,9 +6,10 @@
   а не зашиты жёстко;
 - таблица "Variables by Height" идёт от 0 до nt-1 (консистентно с кодом
   калибровки, в оригинале — в обратном порядке);
-- на 3-м слое поверх подложки печатается надпись FRONT_LABEL
-  («HACKRETRACTION») выпуклыми линиями палочного шрифта — ориентация
-  куба (в оригинале перед не помечался);
+- на слоях 3-4 поверх подложки печатается надпись FRONT_LABEL
+  («HACKRETRACTION») выпуклыми линиями палочного шрифта (2 слоя высоты,
+  3 периметра со смещением старта по X) — ориентация куба (в оригинале
+  перед не помечался);
 - перемещения — в АБСОЛЮТНЫХ координатах (G90): слайсеры корректно
   отображают превью только без G91. Подложка, надпись и башня
   центрируются относительно стола и никогда не разъезжаются. Исключение —
@@ -104,32 +105,22 @@ def _side(
 
 
 def _corner_markers(
-    lines: List[str],
-    ps: float,
-    marker: float,
-    size: int,
-    sx1: int,
-    sy1: int,
-    sx2: int,
-    sy2: int,
-    x: float,
-    y: float,
+    lines: List[str], ps: float, marker: float, size: int,
+    sx1: int, sy1: int, x: float, y: float
 ) -> Tuple[float, float]:
-    """Маркеры углов слоя (паттерн оригинала: X-2/Y-2/X2/Y2 и т.д.).
-
-    Абсолютные координаты. Возвращает (x, y) — позиция не меняется.
-    """
+    # Рисуем квадрат и возвращаемся строго в исходные x, y
     lines.append(f"G1 F{int(ps * 60)} X{_fmt(x + sx1 * size, 2)} E{_fmt(marker, 5)}")
     lines.append(f"G1 F{int(ps * 60)} Y{_fmt(y + sy1 * size, 2)} E{_fmt(marker, 5)}")
-    lines.append(f"G1 F{int(ps * 60)} X{_fmt(x + sx2 * size, 2)} E{_fmt(marker, 5)}")
-    lines.append(f"G1 F{int(ps * 60)} Y{_fmt(y + sy2 * size, 2)} E{_fmt(marker, 5)}")
+    lines.append(f"G1 F{int(ps * 60)} X{_fmt(x, 2)} E{_fmt(marker, 5)}")
+    lines.append(f"G1 F{int(ps * 60)} Y{_fmt(y, 2)} E{_fmt(marker, 5)}")
     return x, y
 
 
 # Палочный (stroke) шрифт: каждая буква — список точек (x, y) в координатах
 # буквы (высота 7 мм, ширина 5 мм, шаг между буквами 6 мм). Буква рисуется
 # непрерывной последовательностью G1-отрезков «как ручкой, не отрывая её».
-# Y+ — вниз (текст печатается вниз от верхнего левого угла).
+# В данных шрифта Y+ — вниз; при печати ось Y инвертируется (см. _stroke_text),
+# поэтому на столе буквы стоят на базовой линии и читаются слева направо.
 _STROKE_FONT: Dict[str, List[Tuple[float, float]]] = {
     "H": [(0, 0), (0, 7), (0, 3.5), (5, 3.5), (5, 0), (5, 7)],
     "A": [(0, 7), (2.5, 0), (5, 7), (1.25, 4), (3.75, 4)],
@@ -161,7 +152,9 @@ def _stroke_text(
     относительных координатах (G91), поэтому макрос буквы легко
     перемещать. Между буквами — микро-ретракт (G1 E-0.5), переход G0
     к началу следующей буквы и возврат пластика (G1 E0.5).
-    (x, y) — верхний левый угол текста; буквы «растут» вниз (Y+).
+    (x, y) — нижний левый угол текста (базовая линия); буквы растут
+    вверх (Y-). Ось Y инвертируется: в данных шрифта Y+ — вниз,
+    на столе Y+ — вверх.
     """
     lines.append("G91")
     for i, ch in enumerate(text.upper()):
@@ -170,8 +163,12 @@ def _stroke_text(
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(6, 2)} Y{_fmt(0, 2)}")
             continue
         px, py = pts[0]
+        # Прыжок к началу буквы относительно её локального (0,0)
+        lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(-py, 2)}")
+
         for tx, ty in pts[1:]:
-            dx, dy = tx - px, ty - py
+            # Инвертируем Y: в данных шрифта Y+ — вниз, на столе Y+ — вверх
+            dx, dy = tx - px, -(ty - py)
             dist = (dx * dx + dy * dy) ** 0.5
             lines.append(
                 f"G1 F{int(ps * 60)} X{_fmt(dx, 2)} Y{_fmt(dy, 2)} "
@@ -181,7 +178,7 @@ def _stroke_text(
         if i < len(text) - 1:
             last_x, last_y = pts[-1]
             lines.append(f"G1 F{int(ts) * 60} E-0.50")
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(6 - last_x, 2)} Y{_fmt(-last_y, 2)}")
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(6 - last_x, 2)} Y{_fmt(last_y, 2)}")
             lines.append(f"G1 F{int(ts) * 60} E0.50")
     lines.append("G90")
 
@@ -344,7 +341,8 @@ def generate_gcode(
     tower_x = cx - 25
     tower_y = cy - 25
     text_x = cx - 42
-    text_y = cy - 37
+    text_y = cy - 32  # базовая линия текста; буквы растут вверх до Y=cy-39,
+    # оставаясь внутри подложки (её передний край — cy-40)
     lines.append(";" + _c["start_movement"])
     lines.append(";")
     lines.append("G90")
@@ -352,67 +350,69 @@ def generate_gcode(
     lines.append(f"G1 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh, 2)}")
     lines.append(";")
 
-    # --- Рафт (переэкструзия): сплошная подложка 90x80 с выступом спереди ---
-    ev = _e_value(params, 60) * 1.25
-    ev_increase = ev
-
+    # --- Рафт (Слой 1): горизонталь, шаг 1 мм, E под длину линии 90 мм ---
+    ev = 0.0
+    ev_x_inc = _e_value(params, raft_x1 - raft_x0) * 1.25
     lines.append(";" + _c["layer"] + " 1")
-    # Горизонталь: сплошной зигзаг от края до края, без вырезов и G0-прыжков
     y = raft_y0
-    while y < raft_y1:
-        # линия вправо
+    while y <= raft_y1:
+        ev += ev_x_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        y = y + 2
-        if y >= raft_y1:
+        y += 1
+        if y > raft_y1:
             break
-        # переход вверх на правом краю
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        # линия влево
+        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)}")
+
+        ev += ev_x_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        y = y + 2
-        if y >= raft_y1:
+        y += 1
+        if y > raft_y1:
             break
-        # переход вверх на левом краю
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-    # Возврат к началу рафта на высоту 2-го слоя
+        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
+
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
 
+    # --- Рафт (Слой 2): вертикаль, шаг 1 мм, E под длину линии 80 мм ---
+    ev_y_inc = _e_value(params, raft_y1 - raft_y0) * 1.25
     lines.append(";" + _c["layer"] + " 2")
-    # Вертикаль: сплошной зигзаг от края до края
     x = raft_x0
-    while x < raft_x1:
-        # линия вниз (Y+)
+    while x <= raft_x1:
+        ev += ev_y_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        x = x + 2
-        if x >= raft_x1:
+        x += 1
+        if x > raft_x1:
             break
-        # переход вправо на нижнем краю
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        # линия вверх (Y-)
+        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)}")
+
+        ev += ev_y_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
-        x = x + 2
-        if x >= raft_x1:
+        x += 1
+        if x > raft_x1:
             break
-        # переход вправо на верхнем краю
-        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
-        ev = ev + ev_increase
+        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
+
     # Переход к стартовой позиции калибровки (слой 3)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
 
     # Относительная экструзия (координаты — абсолютные, G90)
     lines.append("M83")
 
-    # --- Надпись HACKRETRACTION (слой 3): выпуклые буквы поверх подложки ---
-    lines.append(";" + _c["layer"] + " 3")
-    lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
-    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts)
+    # --- Надпись HACKRETRACTION (слои 3-4, 3 периметра) ---
+    for layer_offset in range(2):
+        current_z = lh * (3 + layer_offset)
+        lines.append(f";Layer {3 + layer_offset} (Text)")
+        lines.append(f"G1 Z{_fmt(current_z, 2)}")
+
+        # 3 периметра (смещаем старт по X на диаметр сопла)
+        for p in range(3):
+            offset_x = text_x + p * nd
+            lines.append("G90")
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(offset_x, 2)} Y{_fmt(text_y, 2)}")
+            _stroke_text(lines, params, FRONT_LABEL, offset_x, text_y, ps, ts)
+
+    # ВОЗВРАТ НА ВЫСОТУ 3 СЛОЯ ДЛЯ СТАРТА БАШНИ
+    lines.append("G90")
+    lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 3, 2)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
 
     # --- Калибровка ---
@@ -432,19 +432,19 @@ def generate_gcode(
         x, y = tower_x, tower_y
 
         # Маркер угла: нижний левый
-        x, y = _corner_markers(lines, ps, corenermarker, 2, -1, -1, 1, 1, x, y)
+        x, y = _corner_markers(lines, ps, corenermarker, 2, -1, -1, x, y)
         # Bottom (перед): значения 0..3 (движение X+, втягивание Y-)
         x, y = _side(lines, params, 0, "X", 1, "Y", -1, loopbigcount, ev, ps, ts, x, y)
         # Маркер угла: нижний правый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, -1, -1, 1, x, y)
+        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, -1, x, y)
         # Right: значения 4..7 (движение Y+, втягивание X+)
         x, y = _side(lines, params, 4, "Y", 1, "X", 1, loopbigcount, ev, ps, ts, x, y)
         # Маркер угла: верхний правый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, 1, -1, -1, x, y)
+        x, y = _corner_markers(lines, ps, corenermarker, 1, 1, 1, x, y)
         # Top (зад): значения 8..11 (движение X-, втягивание Y+)
         x, y = _side(lines, params, 8, "X", -1, "Y", 1, loopbigcount, ev, ps, ts, x, y)
         # Маркер угла: верхний левый
-        x, y = _corner_markers(lines, ps, corenermarker, 1, -1, 1, 1, -1, x, y)
+        x, y = _corner_markers(lines, ps, corenermarker, 1, -1, 1, x, y)
         # Left: значения 12..15 (движение Y-, втягивание X-)
         x, y = _side(lines, params, 12, "Y", -1, "X", -1, loopbigcount, ev, ps, ts, x, y)
 

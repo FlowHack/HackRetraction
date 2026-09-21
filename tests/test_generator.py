@@ -60,11 +60,11 @@ def test_start_movement_position() -> None:
 
 
 def test_raft_extrusion_values() -> None:
-    # eValue(60)*1.25 = 1.72803 (эталон: G1 F2100 X190.0 Y130.0 E1.72803).
+    # eValue(90)*1.25 = 2.59205 (первая линия слоя 1, шаг 1 мм)
     gcode = _gcode()
-    assert "G1 F2100 X205.00 Y120.00 E1.72803" in gcode
-    # вторая линия рафта — Y122 (шаг 2 мм)
-    assert "G1 F2100 X205.00 Y122.00 E3.45607" in gcode
+    assert "G1 F2100 X205.00 Y120.00 E2.59205" in gcode
+    # вторая линия слоя 1 — Y121 (шаг 1 мм), E накоплен: 2*2.59205
+    assert "G1 F2100 X115.00 Y121.00 E5.18410" in gcode
 
 
 def test_calibration_values() -> None:
@@ -83,14 +83,14 @@ def test_calibration_geometry() -> None:
     gcode = _gcode()
     lines = gcode.splitlines()
     nt, lt = 15, 25
-    # по одному G1 Z на каждый слой теста + стартовый подъём
-    assert sum(1 for l in lines if l.startswith("G1 Z")) == nt * lt + 1
+    # по одному G1 Z на каждый слой теста + стартовый подъём + 2 слоя текста
+    assert sum(1 for l in lines if l.startswith("G1 Z")) == nt * lt + 3
     # M106/M104 — по одному на тест
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
     # абсолютные координаты (G90), относительная экструзия (M83);
-    # G91 — только для штрихов букв надписи (ровно один раз)
-    assert "M83" in lines and "G90" in lines and lines.count("G91") == 1
+    # G91 — только для штрихов букв надписи (2 слоя x 3 периметра = 6 раз)
+    assert "M83" in lines and "G90" in lines and lines.count("G91") == 6
     # конечный gcode вставлен в конец
     assert gcode.rstrip().endswith(";END")
 
@@ -99,25 +99,34 @@ def test_front_label_printed() -> None:
     """Надпись печатается выпуклыми линиями поверх сплошной подложки."""
     gcode = _gcode()
     lines = gcode.splitlines()
-    # слой 1: сплошной зигзаг, единственный G0 — возврат к началу слоя 2
+    # слой 1: зигзаг с шагом 1 мм, G0-переходы между линиями + возврат к слою 2
     i1 = lines.index(";Layer 1")
     i2 = lines.index(";Layer 2")
     g0s = [l for l in lines[i1:i2] if l.startswith("G0")]
-    assert len(g0s) == 1 and g0s[0] == "G0 F9000 X115.00 Y120.00 Z0.40"
+    assert len(g0s) == 81 and g0s[0] == "G0 F9000 X205.00 Y121.00"
     i3 = next(
         i for i, l in enumerate(lines[i2:], i2)
         if l.startswith("G0 F9000 X135.00 Y135.00 Z0.60")
     )
-    # слой 2: сплошной зигзаг до перехода к старту калибровки
-    assert not any(l.startswith("G0") for l in lines[i2:i3])
-    # переход к тексту (text_x=cx-42=118, text_y=cy-37=123)
-    assert "G0 F9000 X118.00 Y123.00" in gcode
-    # первый штрих буквы H: (0,0)->(0,7), ev = eValue(7) = 0.16128
-    assert "G1 F4200 X0.00 Y7.00 E0.16128" in gcode
+    # слой 2: тоже зигзаг с G0-переходами до перехода к старту калибровки
+    assert any(l.startswith("G0") for l in lines[i2:i3])
+    # переход к тексту (text_x=cx-42=118, text_y=cy-32=128)
+    assert "G0 F9000 X118.00 Y128.00" in gcode
+    # 3 периметра: смещение старта по X на диаметр сопла (0.4/0.8)
+    assert "G0 F9000 X118.40 Y128.00" in gcode
+    assert "G0 F9000 X118.80 Y128.00" in gcode
+    # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
+    # ev = eValue(7) = 0.16128
+    assert "G1 F4200 X0.00 Y-7.00 E0.16128" in gcode
     # микро-ретракт между буквами: от конца H (5,7) к началу A (6,0)
     assert "G1 F9000 E-0.50" in gcode
-    assert "G0 F9000 X1.00 Y-7.00" in gcode
+    assert "G0 F9000 X1.00 Y7.00" in gcode
     assert "G1 F9000 E0.50" in gcode
+    # прыжок к началу буквы A: pts[0]=(0,7) -> X0.00 Y-7.00
+    assert "G0 F9000 X0.00 Y-7.00" in gcode
+    # текст печатается на 2 слоях (Z0.60 и Z0.80), затем возврат на Z0.60
+    assert "G1 Z0.60" in gcode and "G1 Z0.80" in gcode
+    assert "G0 F9000 Z0.60" in gcode
 
 
 def test_all_inputs_section() -> None:
