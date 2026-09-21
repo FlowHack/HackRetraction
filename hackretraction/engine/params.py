@@ -16,6 +16,7 @@ from ..constants import (
     EXTRUDER_ID_KEYS,
     EXTRUDER_PRESETS,
     FAN_SPEED_KEYS,
+    KEY_SECTIONS,
     PRESET_KEYS,
     START_GCODE_KEY,
 )
@@ -31,6 +32,26 @@ def _fmt_val(value: float) -> str:
     if float(value).is_integer():
         return str(int(value))
     return str(value)
+
+
+def _to_float(value: Any) -> Optional[float]:
+    """Нормализует значение пресета в float: строка/массив/число.
+
+    "210;210" → первый элемент, "85%" → 85, "nil"/пусто → None.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (list, tuple)):
+        return _to_float(value[0]) if value else None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().split(";", maxsplit=1)[0].rstrip("%")
+    if not text or text.lower() == "nil":
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
 
 
 # Точечная подстановка плейсхолдеров OrcaSlicer из параметров.
@@ -140,7 +161,7 @@ def _parse_printable_area(area: Any) -> Optional[tuple[float, float]]:
 class ParamsMixin(CoreMixin):
     """Подтягивание параметров, стартового/конечного gcode и типа экструдера."""
 
-    def pull_from_profile(self) -> Dict[str, Any]:
+    def pull_from_profile(self) -> Dict[str, Any]:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         """Подтягивает параметры и gcode из профиля принтера (если Orca есть).
 
         Возвращает dict: params (подтянутые значения), start_gcode, end_gcode,
@@ -166,27 +187,35 @@ class ParamsMixin(CoreMixin):
                 value = bundle.full_config_value(key)
                 return getattr(value, "value", value)
 
-            # Параметры из PRESET_KEYS
-            for ui_key, preset_key in PRESET_KEYS.items():
-                try:
-                    value = _getv(preset_key)
-                    if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        result["params"][ui_key] = float(value)
-                except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
-                    _LOGGER.debug("Нет параметра %s в профиле: %s", preset_key, exc)
+            # Параметры из PRESET_KEYS. Значения в профилях Orca хранятся
+            # строками/массивами строк — нормализуем через _to_float.
+            for ui_key, preset_keys in PRESET_KEYS.items():
+                for preset_key in preset_keys:
+                    try:
+                        num = _to_float(_getv(preset_key))
+                    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                        _LOGGER.debug("Нет параметра %s в профиле: %s", preset_key, exc)
+                        num = None
+                    if num is None:
+                        # Резервный проход по цепочке наследования пресета.
+                        try:
+                            num = _to_float(self._preset_chain_value(bundle, preset_key))
+                        except (
+                            AttributeError, KeyError, RuntimeError, TypeError, ValueError
+                        ) as exc:
+                            _LOGGER.debug("Нет %s в цепочке пресета: %s", preset_key, exc)
+                            num = None
+                    if num is not None:
+                        result["params"][ui_key] = num
+                        break
 
             # Обдув: полусумма fan_min_speed и fan_max_speed (типично min=0 —
             # получаем половину максимума; при ненулевом min учитывается и он).
             try:
-                fan_min = _getv(FAN_SPEED_KEYS[0])
-                fan_max = _getv(FAN_SPEED_KEYS[1])
-                if (
-                    isinstance(fan_min, (int, float)) and not isinstance(fan_min, bool)
-                    and isinstance(fan_max, (int, float)) and not isinstance(fan_max, bool)
-                ):
-                    result["params"]["speedFan"] = round(
-                        (float(fan_min) + float(fan_max)) / 2, 1
-                    )
+                fan_min = _to_float(_getv(FAN_SPEED_KEYS[0]))
+                fan_max = _to_float(_getv(FAN_SPEED_KEYS[1]))
+                if fan_min is not None and fan_max is not None:
+                    result["params"]["speedFan"] = round((fan_min + fan_max) / 2, 1)
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                 _LOGGER.debug("Нет обдува (fan_min/max) в профиле: %s", exc)
 
@@ -229,11 +258,83 @@ class ParamsMixin(CoreMixin):
                 except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                     _LOGGER.debug("Нет типа экструдера %s: %s", key, exc)
 
+            if not result["params"]:
+                _LOGGER.warning("Подтяжка не нашла ни одного параметра в профиле")
+
             result["ok"] = True
         except Exception as exc:  # pylint: disable=broad-exception-caught
             _LOGGER.error("Не удалось подтянуть параметры из профиля: %s", exc)
             result["ok"] = False
         return result
+
+    def _preset_chain_value(self, bundle: Any, key: str) -> Any:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+        """Ищет значение ключа по цепочке наследования пресета (текущий → родитель → ...).
+
+        Возвращает первое непустое значение или None. Секция определяется по KEY_SECTIONS.
+        """
+        section = KEY_SECTIONS.get(key)
+        if not section:
+            return None
+        try:
+            collection = getattr(bundle, section, None)
+            if collection is None:
+                return None
+            preset = getattr(collection, "get_selected_preset", None)
+            if callable(preset):
+                preset = preset()
+            if preset is None:
+                return None
+            chain: list[Any] = []
+            seen: set[str] = set()
+            cur = preset
+            for _ in range(20):
+                if cur is None:
+                    break
+                name = str(getattr(cur, "name", "") or "")
+                if name in seen:
+                    break
+                seen.add(name)
+                chain.append(cur)
+                parent_name = ""
+                value_fn = getattr(cur, "config_value", None)
+                if callable(value_fn):
+                    try:
+                        raw_inherits = value_fn("inherits")
+                        parent_name = str(
+                            getattr(raw_inherits, "value", raw_inherits) or ""
+                        )
+                    except (TypeError, RuntimeError, ValueError):
+                        parent_name = ""
+                if not parent_name:
+                    break
+                finder = getattr(collection, "find_preset", None)
+                if not callable(finder):
+                    break
+                try:
+                    cur = finder(parent_name)
+                except (TypeError, RuntimeError, ValueError):
+                    break
+            # Merge от корня к текущему: значения дочерних уровней перекрывают
+            # родительские (каждое непустое значение перезаписывает предыдущее).
+            merged: Any = None
+            for item in reversed(chain):
+                value_fn = getattr(item, "config_value", None)
+                if not callable(value_fn):
+                    continue
+                try:
+                    raw = value_fn(key)
+                except (TypeError, RuntimeError, ValueError):
+                    continue
+                raw = getattr(raw, "value", raw)
+                if raw is None:
+                    continue
+                if isinstance(raw, str) and not raw.strip():
+                    continue
+                merged = raw
+            return merged
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _LOGGER.debug("Резервный проход по цепочке %s не удался: %s", key, exc)
+        return None
 
     def apply_extruder_presets(self, params: Dict[str, Any], extruder: str) -> None:
         """Накладывает стартовые значения для типа экструдера на params."""

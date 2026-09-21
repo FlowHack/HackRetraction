@@ -391,3 +391,132 @@ def test_auto_pull_applies_on_init(monkeypatch):
     start, end = engine.get_start_end_gcode()
     assert start == "M400 ; Очистка буфера\nM220 S100"
     assert end == "M84 X Y E\nM104 S0"
+
+
+def test_pull_from_profile_strings_and_arrays(monkeypatch):
+    """Значения профиля строками/массивами строк (как в реальных JSON Orca)."""
+    params_mod, fake = _fake_orca(
+        {
+            "nozzle_temperature": ["232"],
+            "hot_plate_temp": ["80"],
+            "fan_min_speed": ["30"],
+            "fan_max_speed": ["80"],
+            "outer_wall_speed": "30",
+            "travel_speed": "200",
+            "layer_height": "0.2",
+            "filament_flow_ratio": ["0.97"],
+            "nozzle_diameter": ["0.4"],
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    params = result["params"]
+    assert params["nozzleDiameter"] == 0.4
+    assert params["layerHeight"] == 0.2
+    assert params["extrusionMultiplier"] == 0.97
+    assert params["speedTravel"] == 200.0
+    assert params["printSpeed"] == 30.0
+    assert params["tempStarthotend"] == 232.0
+    assert params["tempBed"] == 80.0
+    assert params["speedFan"] == 55.0
+    assert params["dimensionX"] == 325.0
+    assert params["dimensionY"] == 325.0
+
+
+def test_pull_from_profile_percent_and_multi_extruder(monkeypatch):
+    """Проценты ('85%') и multi-extruder ('0.4;0.2;0.6') нормализуются."""
+    params_mod, fake = _fake_orca(
+        {
+            "fan_min_speed": "0%",
+            "fan_max_speed": "85%",
+            "nozzle_diameter": "0.4;0.2;0.6;0.8;1.0",
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    assert result["params"]["nozzleDiameter"] == 0.4
+    assert result["params"]["speedFan"] == 42.5
+
+
+class _FakePreset:
+    """Мок пресета Orca: name + config_value (с поддержкой inherits)."""
+
+    def __init__(self, name, values, inherits=""):
+        self.name = name
+        self._values = values
+        self._inherits = inherits
+
+    def config_value(self, key):
+        if key == "inherits":
+            return _FakeValue(self._inherits)
+        return _FakeValue(self._values.get(key, None))
+
+
+class _FakeCollection:
+    """Мок коллекции пресетов (printers/filaments/prints)."""
+
+    def __init__(self, presets, selected_name):
+        self._presets = {p.name: p for p in presets}
+        self._selected = selected_name
+
+    def get_selected_preset(self):
+        return self._presets.get(self._selected)
+
+    def find_preset(self, name):
+        return self._presets.get(name)
+
+
+class _FakeChainBundle:
+    """Мок preset_bundle с коллекциями для резервного прохода по цепочке."""
+
+    def __init__(self, values, collections):
+        self._values = values
+        self.printers = collections.get("printers")
+        self.filaments = collections.get("filaments")
+        self.prints = collections.get("prints")
+
+    def full_config_value(self, key):
+        return _FakeValue(self._values.get(key, None))
+
+
+def test_pull_chain_fallback(monkeypatch):
+    """Резервный проход по цепочке наследования находит значение в родителе."""
+    params_mod, fake = _fake_orca({})
+    # merged-конфиг пуст, но в цепочке пресетов значение есть
+    base = _FakePreset("Base", {"outer_wall_speed": "30", "travel_speed": "200"})
+    user = _FakePreset("User", {"layer_height": "0.2"}, inherits="Base")
+    bundle = _FakeChainBundle(
+        {},
+        {"prints": _FakeCollection([base, user], "User")},
+    )
+    fake.host._bundle = bundle
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    assert result["params"]["printSpeed"] == 30.0
+    assert result["params"]["speedTravel"] == 200.0
+    assert result["params"]["layerHeight"] == 0.2
+
+
+def test_pull_chain_child_overrides_parent(monkeypatch):
+    """Дочерний пресет перекрывает значение родителя в цепочке."""
+    params_mod, fake = _fake_orca({})
+    base = _FakePreset("Base", {"outer_wall_speed": "30"})
+    user = _FakePreset("User", {"outer_wall_speed": "45"}, inherits="Base")
+    bundle = _FakeChainBundle(
+        {},
+        {"prints": _FakeCollection([base, user], "User")},
+    )
+    fake.host._bundle = bundle
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    assert result["params"]["printSpeed"] == 45.0

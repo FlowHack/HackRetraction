@@ -35,17 +35,41 @@ DEFAULT_PARAMS: dict[str, float | int | str] = {
     "endGcode": "",
 }
 
-# Параметры, подтягиваемые из профиля принтера: ключ UI -> ключ пресета Orca.
-PRESET_KEYS: dict[str, str] = {
-    "nozzleDiameter": "nozzle_diameter",
-    "dimensionX": "printable_width",
-    "dimensionY": "printable_depth",
-    "layerHeight": "layer_height",
-    "extrusionMultiplier": "filament_flow_ratio",
-    "speedTravel": "travel_speed",
-    "printSpeed": "outer_wall_speed",
-    "tempStarthotend": "nozzle_temperature",
-    "tempBed": "hot_plate_temp",
+# Параметры, подтягиваемые из профиля принтера: ключ UI -> кортеж ключей
+# пресета Orca (fallback-цепочка: первый найденный ключ побеждает).
+PRESET_KEYS: dict[str, tuple[str, ...]] = {
+    "nozzleDiameter": ("nozzle_diameter",),
+    "dimensionX": ("printable_width",),
+    "dimensionY": ("printable_depth",),
+    "layerHeight": ("layer_height",),
+    "extrusionMultiplier": ("filament_flow_ratio",),
+    "speedTravel": ("travel_speed",),
+    "printSpeed": ("outer_wall_speed", "default_print_speed"),
+    "tempStarthotend": ("nozzle_temperature",),
+    "tempBed": ("hot_plate_temp", "bed_temperature"),
+}
+
+# Секция пресета для каждого ключа профиля (резервный проход по цепочке
+# наследования в pull_from_profile).
+KEY_SECTIONS: dict[str, str] = {
+    "nozzle_diameter": "printers",
+    "printable_width": "printers",
+    "printable_depth": "printers",
+    "printable_area": "printers",
+    "machine_start_gcode": "printers",
+    "machine_end_gcode": "printers",
+    "printer_extruder_id": "printers",
+    "printer_extruder_variant": "printers",
+    "filament_flow_ratio": "filaments",
+    "nozzle_temperature": "filaments",
+    "hot_plate_temp": "filaments",
+    "bed_temperature": "filaments",
+    "fan_min_speed": "filaments",
+    "fan_max_speed": "filaments",
+    "layer_height": "prints",
+    "outer_wall_speed": "prints",
+    "default_print_speed": "prints",
+    "travel_speed": "prints",
 }
 
 # Ключи обдува: speedFan вычисляется как полусумма min/max (см. pull_from_profile).
