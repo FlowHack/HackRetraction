@@ -94,12 +94,20 @@ body {
 }
 .brand-name { color: var(--fg); }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-left: auto;
+  flex: 1;
+  justify-content: center;
 }
 
 .btn {

@@ -9,8 +9,12 @@
 <body>
 <div id="app">
   <header class="topbar">
-    <div class="toolbar">
+    <div class="toolbar-left">
       <button id="btn-help" class="btn help" title="Help">?</button>
+      <button id="btn-settings" class="btn icon" title="Settings">&#9881;</button>
+      <button id="btn-support" class="btn support" title="Support project">&#9829;</button>
+    </div>
+    <div class="toolbar">
       <button id="btn-pull" class="btn" data-text="btn.pull" data-tip="t.pull">Pull parameters</button>
       <button id="btn-reset" class="btn" data-text="btn.reset" data-tip="t.reset">Reset</button>
       <button id="btn-load" class="btn" data-text="btn.load" data-tip="t.load">Load GCODE</button>
@@ -21,8 +25,6 @@
           <button id="gen-save" class="dropdown-item" data-text="btn.save">Save to file</button>
         </div>
       </div>
-      <button id="btn-settings" class="btn icon" title="Settings">&#9881;</button>
-      <button id="btn-support" class="btn support" title="Support project">&#9829;</button>
     </div>
   </header>
   <input type="file" id="file-input" accept=".gcode,.gco,.g,.nc,text/plain" hidden>

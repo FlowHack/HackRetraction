@@ -113,6 +113,8 @@ class HackRetractionTab(_ConfigMixin, _CapabilityMixin, _TAB_BASE):  # type: ign
                 .joinpath("brand.svg")
                 .read_text(encoding="utf-8")
             )
+            # Красная иконка вкладки (акцентный цвет плагина)
+            svg = svg.replace("currentColor", "#d9534f")
             icon_file = STORAGE_DIR / "tab_icon.svg"
             atomic_write_text(icon_file, svg)
             return str(icon_file)
