@@ -93,8 +93,8 @@ def test_calibration_geometry() -> None:
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
     # абсолютные координаты (G90), относительная экструзия (M83);
-    # G91 — только для штрихов букв надписи (2 слоя x 4 смещения = 8 раз)
-    assert "M83" in lines and "G90" in lines and lines.count("G91") == 8
+    # G91 — только для штрихов букв надписи (2 слоя x 2 смещения = 4 раза)
+    assert "M83" in lines and "G90" in lines and lines.count("G91") == 4
     # конечный gcode вставлен в конец
     assert gcode.rstrip().endswith(";END")
 
@@ -116,10 +116,11 @@ def test_front_label_printed() -> None:
     assert any(l.startswith("G0") for l in lines[i2:i3])
     # переход к тексту (text_x=cx-42=118, text_y=cy-32=128)
     assert "G0 F9000 X118.00 Y128.00" in gcode
-    # матрица 4 смещений для утолщения: (0,0), (nd,0), (0,-nd), (nd,-nd)
-    assert "G0 F9000 X118.40 Y128.00" in gcode
-    assert "G0 F9000 X118.00 Y127.60" in gcode
+    # диагональное смещение для утолщения: (0,0) и (nd,-nd)
     assert "G0 F9000 X118.40 Y127.60" in gcode
+    # старые осевые смещения больше не используются
+    assert "G0 F9000 X118.40 Y128.00" not in gcode
+    assert "G0 F9000 X118.00 Y127.60" not in gcode
     # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
     # ev = eValue(7) = 0.16128
     assert "G1 F4200 X0.00 Y-7.00 E0.16128" in gcode
