@@ -199,6 +199,8 @@ def _stroke_text(
     периметр. Между штрихами и буквами — ретракт.
     """
     lines.append("G90")
+    lines.append("M83 ; Жёсткое подтверждение относительной экструзии после G90")
+    lines.append("G92 E0 ; Сброс счетчика экструдера")
     nd = float(params["nozzleDiameter"])
     offset = nd / 2.0  # Смещение на пол-сопла (дает суммарно 2 периметра толщины)
 
@@ -228,7 +230,7 @@ def _stroke_text(
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(py, 2)}")
 
             if is_retracted:
-                lines.append(f"G1 F{int(ts) * 60} E0.50")
+                lines.append("G1 F1800 E0.50 ; Безопасная скорость ретракта (30 мм/с)")
                 is_retracted = False
 
             # 5. Печатаем периметр буквы
@@ -242,13 +244,13 @@ def _stroke_text(
                 px, py = tx, ty
 
             # Делаем ретракт перед переходом к следующему штриху/букве
-            lines.append(f"G1 F{int(ts) * 60} E-0.50")
+            lines.append("G1 F1800 E-0.50 ; Безопасная скорость ретракта (30 мм/с)")
             is_retracted = True
 
         current_x += 6
 
     if is_retracted:
-        lines.append(f"G1 F{int(ts) * 60} E0.50")
+        lines.append("G1 F1800 E0.50 ; Безопасная скорость ретракта (30 мм/с)")
 
 
 def generate_gcode(
@@ -423,6 +425,9 @@ def generate_gcode(
     # --- Рафт (Слой 1): горизонталь, шаг 1 мм, E под длину линии 90 мм ---
     ev = 0.0
     ev_x_inc = _e_value(params, raft_x1 - raft_x0) * 1.25
+    # Экструзия для рабочего перехода по краю (1 мм вдоль края)
+    ev_y_inc_1mm = _e_value(params, 1.0) * 1.25  # слой 1: переходы идут по Y
+    ev_x_inc_1mm = _e_value(params, 1.0) * 1.25  # слой 2: переходы идут по X
     lines.append(";" + _c["layer"] + " 1")
     y = raft_y0
     while y <= raft_y1:
@@ -431,16 +436,22 @@ def generate_gcode(
         y += 1
         if y > raft_y1:
             break
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)}")
+        ev += ev_y_inc_1mm
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
 
         ev += ev_x_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
         y += 1
         if y > raft_y1:
             break
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)}")
+        ev += ev_y_inc_1mm
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(raft_x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
 
+    # Физический ретракт перед переездом на 2-й слой
+    ev_retract = ev - 2.0
+    lines.append(f"G1 F1800 E{_fmt(ev_retract, 5)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
+    lines.append(f"G1 F1800 E{_fmt(ev, 5)}")
 
     # --- Рафт (Слой 2): вертикаль, шаг 1 мм, E под длину линии 80 мм ---
     ev_y_inc = _e_value(params, raft_y1 - raft_y0) * 1.25
@@ -452,20 +463,28 @@ def generate_gcode(
         x += 1
         if x > raft_x1:
             break
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)}")
+        ev += ev_x_inc_1mm
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y1, 2)} E{_fmt(ev, 5)}")
 
         ev += ev_y_inc
         lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
         x += 1
         if x > raft_x1:
             break
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)}")
+        ev += ev_x_inc_1mm
+        lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(raft_y0, 2)} E{_fmt(ev, 5)}")
 
     # Переход к стартовой позиции калибровки (слой 3)
+    # Физический ретракт перед переездом к башне
+    ev_retract = ev - 2.0
+    lines.append(f"G1 F1800 E{_fmt(ev_retract, 5)}")
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)} Z{_fmt(lh * 3, 2)}")
+    # Возврат пластика после переезда (M82: абсолютная позиция E)
+    lines.append(f"G1 F1800 E{_fmt(ev, 5)}")
 
     # Относительная экструзия (координаты — абсолютные, G90)
     lines.append("M83")
+    lines.append("G92 E0 ; Сброс счетчика экструдера")
 
     # --- Надпись HACKRETRACTION (слои 3-4, 2 периметра по нормалям) ---
     for layer_offset in range(2):
@@ -478,6 +497,8 @@ def generate_gcode(
 
     # ВОЗВРАТ НА ВЫСОТУ 3 СЛОЯ ДЛЯ СТАРТА БАШНИ
     lines.append("G90")
+    lines.append("M83 ; Блокируем переопределение абсолютной экструзии от G90")
+    lines.append("G92 E0")
     # СНАЧАЛА едем в центр (безопасная зона)
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(tower_x, 2)} Y{_fmt(tower_y, 2)}")
     # ЗАТЕМ опускаемся на рабочую высоту

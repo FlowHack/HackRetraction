@@ -67,8 +67,10 @@ def test_raft_extrusion_values() -> None:
     # eValue(90)*1.25 = 2.59205 (первая линия слоя 1, шаг 1 мм)
     gcode = _gcode()
     assert "G1 F2100 X205.00 Y120.00 E2.59205" in gcode
-    # вторая линия слоя 1 — Y121 (шаг 1 мм), E накоплен: 2*2.59205
-    assert "G1 F2100 X115.00 Y121.00 E5.18410" in gcode
+    # рабочий переход по краю слоя 1: 1 мм вдоль Y, eValue(1)*1.25 = 0.0288
+    assert "G1 F2100 X205.00 Y121.00 E2.62085" in gcode
+    # вторая линия слоя 1 — Y121 (шаг 1 мм), E накоплен: 2.59205+0.0288+2.59205
+    assert "G1 F2100 X115.00 Y121.00 E5.21290" in gcode
 
 
 def test_calibration_values() -> None:
@@ -103,17 +105,18 @@ def test_front_label_printed() -> None:
     """Надпись печатается выпуклыми линиями поверх сплошной подложки."""
     gcode = _gcode()
     lines = gcode.splitlines()
-    # слой 1: зигзаг с шагом 1 мм, G0-переходы между линиями + возврат к слою 2
+    # слой 1: зигзаг с шагом 1 мм, переходы по краю — рабочие G1 с экструзией;
+    # единственный G0 — переезд на 2-й слой (с Z), холостых зигзаг-переходов нет
     i1 = lines.index(";Layer 1")
     i2 = lines.index(";Layer 2")
-    g0s = [l for l in lines[i1:i2] if l.startswith("G0")]
-    assert len(g0s) == 81 and g0s[0] == "G0 F9000 X205.00 Y121.00"
+    g0_zigzag = [l for l in lines[i1:i2] if l.startswith("G0") and "Z" not in l]
+    assert len(g0_zigzag) == 0
     i3 = next(
         i for i, l in enumerate(lines[i2:], i2)
         if l.startswith("G0 F9000 X135.00 Y135.00 Z0.60")
     )
-    # слой 2: тоже зигзаг с G0-переходами до перехода к старту калибровки
-    assert any(l.startswith("G0") for l in lines[i2:i3])
+    # слой 2: переходы по краю — тоже рабочие G1, холостых G0 нет
+    assert not any(l.startswith("G0") for l in lines[i2:i3])
     # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
     # offset = nd/2 = 0.2; наружный контур X118.2, внутренний X117.8
     assert "G0 F9000 X118.20 Y128.00" in gcode
@@ -122,9 +125,9 @@ def test_front_label_printed() -> None:
     assert "G1 F4200 X118.20 Y121.00 E0.16128" in gcode
     assert "G1 F4200 X117.80 Y121.00 E0.00922" in gcode
     assert "G1 F4200 X117.80 Y128.00 E0.16128" in gcode
-    # ретракт между штрихами буквы и возврат пластика
-    assert "G1 F9000 E-0.50" in gcode
-    assert "G1 F9000 E0.50" in gcode
+    # ретракт между штрихами буквы и возврат пластика (безопасная скорость)
+    assert "G1 F1800 E-0.50" in gcode
+    assert "G1 F1800 E0.50" in gcode
     # второй штрих H: (0,3.5)->(5,3.5) -> abs (118,124.5)->(123,124.5),
     # наружный контур Y124.7, внутренний Y124.3
     assert "G0 F9000 X118.00 Y124.70" in gcode
