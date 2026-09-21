@@ -151,11 +151,7 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         if not result["ok"]:
             self._post({"type": "status", "key": "status.pull_fail"})
             return
-        params = self.get_params()
-        params.update(result["params"])
-        self.apply_extruder_presets(params, result["extruder"])
-        self.set_params(params)
-        self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+        self._apply_pull_result(result)
         params = self._fill_gcode_params(self.get_params())
         start, end = self._default_gcode(params)
         self._post(

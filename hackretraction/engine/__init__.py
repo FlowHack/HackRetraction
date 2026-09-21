@@ -19,3 +19,6 @@ class _HackRetractionEngine(HandlersMixin, ExportMixin, CoreMixin):
     def __init__(self, plugin: Any) -> None:
         self._plugin = plugin
         self._init_core()
+        # При старте плагина подтягиваем все доступные параметры из профиля
+        # (размеры стола, gcode, пресеты экструдера и т.д.).
+        self._auto_pull()

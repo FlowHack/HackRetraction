@@ -288,3 +288,87 @@ def test_handle_reset_outside_orca_defaults():
     assert msg["params"]["NumTests"] == 15
     assert msg["params"]["startRetractiondistance"] == 0.5
     assert msg["params"]["startGcode"] == msg["default_start_gcode"]
+
+
+class _FakeValue:
+    """Обёртка значения пресета Orca (getattr(value, 'value', value))."""
+
+    def __init__(self, value):
+        self.value = value
+
+
+class _FakeBundle:
+    """Мок preset_bundle: merged-конфиг с ключами профиля."""
+
+    def __init__(self, values):
+        self._values = values
+
+    def full_config_value(self, key):
+        return self._values.get(key, _FakeValue(None))
+
+
+class _FakeHost:
+    def __init__(self, values):
+        self._bundle = _FakeBundle(values)
+
+    def preset_bundle(self):
+        return self._bundle
+
+
+def _fake_orca(values):
+    """Подменяет orca в params.py фейковым хостом с preset_bundle."""
+    import hackretraction.engine.params as params_mod
+
+    class _FakeOrca:
+        host = _FakeHost(values)
+
+    return params_mod, _FakeOrca()
+
+
+def test_pull_normalizes_newlines(monkeypatch):
+    """Подтянутый gcode нормализует литеральные \\n в переносы строк."""
+    params_mod, fake = _fake_orca(
+        {
+            "machine_start_gcode": "M400 ; Очистка буфера\\nM220 S100",
+            "machine_end_gcode": "M84 X Y E\\nM104 S0",
+            "nozzle_diameter": _FakeValue(0.4),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    assert result["start_gcode"] == "M400 ; Очистка буфера\nM220 S100"
+    assert result["end_gcode"] == "M84 X Y E\nM104 S0"
+    assert result["params"]["dimensionX"] == 325.0
+    assert result["params"]["dimensionY"] == 325.0
+    assert result["params"]["nozzleDiameter"] == 0.4
+
+
+def test_auto_pull_applies_on_init(monkeypatch):
+    """При создании движка параметры подтягиваются из профиля автоматически."""
+    params_mod, fake = _fake_orca(
+        {
+            "machine_start_gcode": "M400 ; Очистка буфера\\nM220 S100",
+            "machine_end_gcode": "M84 X Y E\\nM104 S0",
+            "nozzle_diameter": _FakeValue(0.4),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+            "extruder_type": "Direct Drive",
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    params = engine.get_params()
+    assert params["dimensionX"] == 325.0
+    assert params["dimensionY"] == 325.0
+    assert params["nozzleDiameter"] == 0.4
+    # пресет direct: старт 1.0, шаг 0.1, скорость 5.0, шаг 2.0
+    assert params["startRetractiondistance"] == 1.0
+    assert params["incrementRetractiondistance"] == 0.1
+    assert params["startRetractionspeed"] == 5.0
+    assert params["incrementRetractionspeed"] == 2.0
+    # gcode подтянут и нормализован
+    start, end = engine.get_start_end_gcode()
+    assert start == "M400 ; Очистка буфера\nM220 S100"
+    assert end == "M84 X Y E\nM104 S0"

@@ -185,15 +185,18 @@ class ParamsMixin(CoreMixin):
                 except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                     _LOGGER.debug("Нет printable_area в профиле: %s", exc)
 
-            # Стартовый/конечный gcode (пусто — дефолт)
+            # Стартовый/конечный gcode (пусто — дефолт).
+            # Orca отдаёт gcode с литеральными \n — нормализуем в переносы.
             try:
                 start = _getv(START_GCODE_KEY)
-                result["start_gcode"] = str(start) if start else ""
+                result["start_gcode"] = (
+                    str(start).replace("\\n", "\n") if start else ""
+                )
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                 _LOGGER.debug("Нет стартового gcode: %s", exc)
             try:
                 end = _getv(END_GCODE_KEY)
-                result["end_gcode"] = str(end) if end else ""
+                result["end_gcode"] = str(end).replace("\\n", "\n") if end else ""
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                 _LOGGER.debug("Нет конечного gcode: %s", exc)
 
@@ -221,6 +224,29 @@ class ParamsMixin(CoreMixin):
         preset = EXTRUDER_PRESETS.get(extruder)
         if preset:
             params.update(preset)
+
+    def _apply_pull_result(self, result: Dict[str, Any]) -> None:
+        """Применяет результат pull_from_profile к состоянию движка.
+
+        Обновляет только подтянутые параметры, накладывает пресеты
+        экструдера и сохраняет подтянутые gcode. Остальные поля не трогает.
+        """
+        params = self.get_params()
+        params.update(result["params"])
+        self.apply_extruder_presets(params, result["extruder"])
+        self.set_params(params)
+        self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+
+    def _auto_pull(self) -> None:
+        """Подтягивает параметры из профиля при старте плагина.
+
+        Вызывается один раз при создании движка: все подтягиваемые значения
+        (параметры, gcode, пресеты экструдера) применяются к состоянию.
+        Вне Orca (или при ошибке) ничего не делает.
+        """
+        result = self.pull_from_profile()
+        if result["ok"]:
+            self._apply_pull_result(result)
 
     def resolved_start_end(self, params: Dict[str, Any]) -> tuple[str, str]:
         """Возвращает (start_gcode, end_gcode) с подставленными плейсхолдерами.
