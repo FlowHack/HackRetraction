@@ -296,6 +296,14 @@ body {
   font-family: var(--font-mono);
   font-size: 0.86em;
 }
+/* Кнопка «По умолчанию» у полей стартового/конечного gcode. */
+.btn-default-gcode {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 10px;
+  font-size: 0.82em;
+  margin-top: 2px;
+}
 
 /* --- Тултипы (вопросик) --- */
 .tip {

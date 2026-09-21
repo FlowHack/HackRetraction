@@ -146,3 +146,91 @@ def test_unknown_message_logs_only():
     engine.set_post_sink(messages.append)
     engine.handle_message({"type": "nonexistent"})
     assert messages == []
+
+
+def test_get_state_includes_gcode():
+    """state отдаёт резолвнутые gcode и дефолты для кнопки «По умолчанию»."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "get_state"})
+    msg = messages[-1]
+    assert msg["type"] == "state"
+    assert "startGcode" in msg["params"]
+    assert "endGcode" in msg["params"]
+    assert msg["params"]["startGcode"] == msg["default_start_gcode"]
+    assert msg["params"]["endGcode"] == msg["default_end_gcode"]
+    assert "M190" in msg["params"]["startGcode"]
+    assert "M104" in msg["params"]["endGcode"]
+
+
+def test_get_state_resolves_placeholders():
+    """Дефолтный gcode в state подставляет размеры стола из параметров."""
+    engine = _engine()
+    engine.set_params({"dimensionX": 320.0, "dimensionY": 220.0})
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "get_state"})
+    msg = messages[-1]
+    assert "X110" in msg["default_start_gcode"]
+    assert "Y220" in msg["default_end_gcode"]
+
+
+def test_default_gcode_button():
+    """Кнопка «По умолчанию» подставляет дефолтный gcode в поле."""
+    engine = _engine()
+    engine.set_params({"dimensionX": 250.0})
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "default_gcode", "field": "startGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "default_gcode_set"
+    assert msg["field"] == "startGcode"
+    assert "M190" in msg["gcode"]
+    assert msg["params"]["startGcode"] == msg["gcode"]
+
+
+def test_default_gcode_unknown_field_logs_only():
+    """Неизвестное поле gcode не роняет движок."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "default_gcode", "field": "bogus"})
+    assert messages == []
+
+
+def test_recalc_default_gcode():
+    """Live-пересчёт дефолтов при смене размеров стола."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message(
+        {"type": "recalc_default_gcode", "params": {"dimensionX": 320.0, "dimensionY": 220.0}}
+    )
+    msg = messages[-1]
+    assert msg["type"] == "default_gcode_updated"
+    assert "X110" in msg["start_gcode"]
+    assert "Y220" in msg["end_gcode"]
+
+
+def test_generate_uses_edited_gcode():
+    """Отредактированный пользователем gcode попадает в генерацию."""
+    engine = _engine()
+    msg = _generate(
+        engine,
+        {"NumTests": 3, "layersTest": 5, "startGcode": "G28 ; мой старт"},
+    )
+    assert "G28 ; мой старт" in msg["gcode"]
+
+
+def test_resolved_start_end_priority():
+    """Приоритет: params > подтянутый из профиля > дефолт."""
+    engine = _engine()
+    engine.set_start_end_gcode("G28 ; профиль", "M84 ; профиль")
+    params = engine.get_params()
+    start, end = engine.resolved_start_end(params)
+    assert start == "G28 ; профиль"
+    assert end == "M84 ; профиль"
+    params["startGcode"] = "G28 ; пользователь"
+    start, _ = engine.resolved_start_end(params)
+    assert start == "G28 ; пользователь"

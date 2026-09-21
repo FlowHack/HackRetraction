@@ -5,7 +5,9 @@ var state = {
   params: {},
   settings: {},
   ui: null,
-  gcode: ""
+  gcode: "",
+  defaultStartGcode: "",
+  defaultEndGcode: ""
 };
 
 /* --- Мост с Python --- */
@@ -71,6 +73,12 @@ function buildForm(ui, params) {
       }
       if (type === "textarea") {
         html += '<textarea data-param="' + key + '">' + esc(value) + "</textarea>";
+        /* Кнопка «По умолчанию» для стартового/конечного gcode. */
+        if (key === "startGcode" || key === "endGcode") {
+          html += '<button type="button" class="btn btn-default-gcode" ' +
+            'data-default-gcode="' + key + '">' +
+            esc(text("btn.default_gcode")) + "</button>";
+        }
       } else {
         /* Шаги инкрементальных параметров не могут быть отрицательными. */
         var min = STEP_KEYS.indexOf(key) >= 0 ? ' min="0"' : "";
@@ -90,6 +98,7 @@ function buildForm(ui, params) {
   bindSections();
   bindLivePreview();
   bindTips();
+  bindDefaultGcodeButtons();
   applyStepLock(params);
 }
 
@@ -136,7 +145,35 @@ function bindLivePreview() {
       var params = collectParams();
       applyStepLock(params);
       renderPreview(params);
+      /* Пересчёт дефолтных gcode при смене размеров стола — только если
+         поле gcode не редактировалось пользователем (равно дефолту). */
+      var key = this.getAttribute("data-param");
+      if (key === "dimensionX" || key === "dimensionY") {
+        recalcDefaultsIfUnmodified(params);
+      }
     });
+  }
+}
+
+/* Кнопки «По умолчанию» у полей стартового/конечного gcode. */
+function bindDefaultGcodeButtons() {
+  var buttons = document.querySelectorAll("[data-default-gcode]");
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener("click", function () {
+      post({ type: "default_gcode", field: this.getAttribute("data-default-gcode") });
+    });
+  }
+}
+
+/* Если оба поля gcode не тронуты — запрашиваем пересчёт дефолтов. */
+function recalcDefaultsIfUnmodified(params) {
+  var startEl = document.querySelector('[data-param="startGcode"]');
+  var endEl = document.querySelector('[data-param="endGcode"]');
+  if (!startEl || !endEl) return;
+  var startUnmodified = startEl.value === state.defaultStartGcode;
+  var endUnmodified = endEl.value === state.defaultEndGcode;
+  if (startUnmodified || endUnmodified) {
+    post({ type: "recalc_default_gcode", params: params });
   }
 }
 
@@ -418,6 +455,8 @@ function onMessage(msg) {
       state.ui = msg.ui;
       state.params = msg.params || {};
       state.settings = msg.settings || {};
+      state.defaultStartGcode = msg.default_start_gcode || "";
+      state.defaultEndGcode = msg.default_end_gcode || "";
       applyTexts();
       applyTheme(state.settings);
       applyFont(state.settings);
@@ -438,6 +477,8 @@ function onMessage(msg) {
       break;
     case "pulled":
       state.params = msg.params || {};
+      state.defaultStartGcode = msg.default_start_gcode || "";
+      state.defaultEndGcode = msg.default_end_gcode || "";
       setFormValues(state.params);
       applyStepLock(state.params);
       renderPreview(state.params);
@@ -445,10 +486,29 @@ function onMessage(msg) {
       break;
     case "reset":
       state.params = msg.params || {};
+      state.defaultStartGcode = msg.default_start_gcode || "";
+      state.defaultEndGcode = msg.default_end_gcode || "";
       setFormValues(state.params);
       applyStepLock(state.params);
       renderPreview(state.params);
       showToast(msg.status || "status.reset_ok");
+      break;
+    case "default_gcode_set":
+      state.params = msg.params || {};
+      setFormValues(state.params);
+      break;
+    case "default_gcode_updated":
+      /* Обновляем поля, только если они всё ещё равны старым дефолтам. */
+      var startEl = document.querySelector('[data-param="startGcode"]');
+      var endEl = document.querySelector('[data-param="endGcode"]');
+      if (startEl && startEl.value === state.defaultStartGcode) {
+        startEl.value = msg.start_gcode || "";
+      }
+      if (endEl && endEl.value === state.defaultEndGcode) {
+        endEl.value = msg.end_gcode || "";
+      }
+      state.defaultStartGcode = msg.start_gcode || "";
+      state.defaultEndGcode = msg.end_gcode || "";
       break;
     case "loaded":
       state.params = msg.params || {};

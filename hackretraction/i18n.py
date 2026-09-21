@@ -17,6 +17,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "sec.printing": "Printing",
         "sec.bed_test": "Bed & Test",
         "sec.custom": "Custom G-code",
+        "sec.gcode": "Printer G-code",
         # Кнопки
         "btn.generate": "Generate GCODE",
         "btn.copy": "Copy GCODE",
@@ -26,6 +27,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "btn.settings": "Settings",
         "btn.load": "Load GCODE",
         "btn.support": "Support project",
+        "btn.default_gcode": "Default",
         # Настройки
         "set.theme": "Theme",
         "set.theme_auto": "Auto",
@@ -108,6 +110,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "p.layersTest": "Layers per test",
         "p.NumTests": "Number of tests",
         "p.customGcode": "Custom G-code",
+        "p.startGcode": "Start G-code",
+        "p.endGcode": "End G-code",
         # Тултипы
         "t.startRetractiondistance": "How far the filament is pulled back on a non-printing move. Too short → stringing (cobwebs); too long → under-extrusion or clogging. Find the smallest value where the wall stays solid.",
         "t.incrementRetractiondistance": "How much retraction distance grows with each test block (e.g. 0.5 tests 0.5, 1.0, 1.5…). Direct-drive printers usually need 0.25, Bowden 0.5.",
@@ -129,6 +133,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.layersTest": "Layers per test block — controls how tall each block is.",
         "t.NumTests": "Number of test blocks. Together with layersTest controls the total height.",
         "t.customGcode": "Extra G-code inserted after the start block (e.g. auto bed leveling).",
+        "t.startGcode": "Printer start G-code. Pre-filled from your printer profile; edit if needed. Placeholders like {print_bed_max[0]*0.5-50} are resolved from the bed size.",
+        "t.endGcode": "Printer end G-code. Pre-filled from your printer profile; edit if needed.",
         "t.locked": "Field is locked because the increment is already set for: {param}",
         "t.pull": "Load base settings from your printer profile (nozzle, bed size, temperatures, speeds). The plugin does this on startup, but click if the values look wrong.",
         "t.load": "Load a previously generated GCODE file to restore its parameters.",
@@ -141,6 +147,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "sec.printing": "Печать",
         "sec.bed_test": "Стол и тест",
         "sec.custom": "Пользовательский G-code",
+        "sec.gcode": "G-code принтера",
         "btn.generate": "Сгенерировать GCODE",
         "btn.copy": "Скопировать GCODE",
         "btn.save": "Сохранить в файл",
@@ -149,6 +156,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "btn.settings": "Настройки",
         "btn.load": "Загрузить GCODE",
         "btn.support": "Поддержать проект",
+        "btn.default_gcode": "По умолчанию",
         "set.theme": "Тема",
         "set.theme_auto": "Авто",
         "set.theme_dark": "Тёмная",
@@ -225,6 +233,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "p.layersTest": "Слоёв на тест",
         "p.NumTests": "Количество тестов",
         "p.customGcode": "Пользовательский G-code",
+        "p.startGcode": "Начальный G-code",
+        "p.endGcode": "Конечный G-code",
         "t.startRetractiondistance": "Расстояние отката филамента при ретракции. Слишком малое — сопли и паутина, слишком большое — недоэкструзия или забивание. Найдите наименьшее значение, при котором стена остаётся сплошной.",
         "t.incrementRetractiondistance": "На сколько увеличивается втягивание с каждым тестовым блоком (например, 0.5 даёт 0.5, 1.0, 1.5…). Для Direct Drive обычно 0.25, для Bowden 0.5.",
         "t.startRetractionspeed": "Скорость отката филамента первого теста. Слишком низкая — сопли, слишком высокая — обрыв нити. Direct Drive ~10-30 мм/с, Bowden ~30-60 мм/с.",
@@ -245,6 +255,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.layersTest": "Слоёв на тестовый блок — задаёт высоту каждого блока.",
         "t.NumTests": "Количество тестовых блоков. Вместе с layersTest задаёт общую высоту.",
         "t.customGcode": "Дополнительный G-code после стартового блока (например, автоуровень).",
+        "t.startGcode": "Стартовый G-code принтера. Предзаполняется из профиля; можно отредактировать. Плейсхолдеры вида {print_bed_max[0]*0.5-50} подставляются из размеров стола.",
+        "t.endGcode": "Конечный G-code принтера. Предзаполняется из профиля; можно отредактировать.",
         "t.locked": "Поле заблокировано, т.к. «Шаг» уже указан у параметра «{param}»",
         "t.pull": "Загрузить базовые настройки из профиля принтера (сопло, размеры стола, температуры, скорости). Плагин делает это при запуске, но нажмите, если значения выглядят неверно.",
         "t.load": "Загрузить ранее сгенерированный GCODE-файл, чтобы восстановить его параметры.",
@@ -257,6 +269,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "sec.printing": "Štampa",
         "sec.bed_test": "Stol i test",
         "sec.custom": "Prilagođeni G-code",
+        "sec.gcode": "G-code štampača",
         "btn.generate": "Generiši GCODE",
         "btn.copy": "Kopiraj GCODE",
         "btn.save": "Sačuvaj u fajl",
@@ -265,6 +278,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "btn.settings": "Podešavanja",
         "btn.load": "Učitaj GCODE",
         "btn.support": "Podrži projekat",
+        "btn.default_gcode": "Podrazumevano",
         "set.theme": "Tema",
         "set.theme_auto": "Automatski",
         "set.theme_dark": "Tamna",
@@ -341,6 +355,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "p.layersTest": "Slojeva po testu",
         "p.NumTests": "Broj testova",
         "p.customGcode": "Prilagođeni G-code",
+        "p.startGcode": "Početni G-code",
+        "p.endGcode": "Završni G-code",
         "t.startRetractiondistance": "Rastojanje povlačenja filamenta pri retrakciji. Premalo — nitke i paučina, previše — nedovoljna ekstruzija ili začepljenje. Nađite najmanju vrednost gde zid ostaje neprekidan.",
         "t.incrementRetractiondistance": "Za koliko retrakcija raste sa svakim test blokom (npr. 0.5 daje 0.5, 1.0, 1.5…). Za Direct Drive obično 0.25, za Bowden 0.5.",
         "t.startRetractionspeed": "Brzina povlačenja filamenta prvog testa. Premala — nitke, prevelika — prekid niti. Direct Drive ~10-30 mm/s, Bowden ~30-60 mm/s.",
@@ -361,6 +377,8 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.layersTest": "Slojeva po test bloku — zadaje visinu svakog bloka.",
         "t.NumTests": "Broj test blokova. Zajedno sa layersTest zadaje ukupnu visinu.",
         "t.customGcode": "Dodatni G-code posle start bloka (npr. auto nivelacija).",
+        "t.startGcode": "Startni G-code štampača. Popunjava se iz profila; možete ga izmeniti. Placeholderi poput {print_bed_max[0]*0.5-50} se računaju iz dimenzija stola.",
+        "t.endGcode": "Završni G-code štampača. Popunjava se iz profila; možete ga izmeniti.",
         "t.locked": "Polje je zaključano jer je korak već zadat za parametar: {param}",
         "t.pull": "Učitaj osnovna podešavanja iz profila štampača (mlaznica, dimenzije stola, temperature, brzine). Plugin to radi pri pokretanju, ali kliknite ako vrednosti izgledaju pogrešno.",
         "t.load": "Učitaj prethodno generisan GCODE fajl da vratiš njegove parametre.",
@@ -376,6 +394,7 @@ PARAM_SECTIONS: list[tuple[str, list[str]]] = [
     ("sec.printing", ["layerHeight", "printSpeed", "speedTravel", "nozzleDiameter",
                       "filamentDiameter", "extrusionMultiplier"]),
     ("sec.bed_test", ["dimensionX", "dimensionY", "layersTest", "NumTests"]),
+    ("sec.gcode", ["startGcode", "endGcode"]),
 ]
 
 # Типы полей параметров для UI.
@@ -400,6 +419,8 @@ PARAM_TYPES: dict[str, str] = {
     "layersTest": "number",
     "NumTests": "number",
     "customGcode": "textarea",
+    "startGcode": "textarea",
+    "endGcode": "textarea",
 }
 
 # Единицы измерения параметров для UI.

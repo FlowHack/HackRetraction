@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from ..constants import DEFAULT_END_GCODE, DEFAULT_START_GCODE
 from ..errors import ExportError, ProfileError
 from ..i18n import I18N_COMMENTS
 from ..logging import _LOGGER
 from .export import ExportMixin
 from .generator import generate_gcode
-from .params import ParamsMixin, parse_gcode
+from .params import ParamsMixin, apply_placeholders, parse_gcode
 
 # Инкрементальные шаги: одновременно ненулевым может быть только один.
 _STEP_KEYS: tuple[str, ...] = (
@@ -41,14 +42,36 @@ class HandlersMixin(ParamsMixin, ExportMixin):
 
     # --- Состояние ---
 
+    def _fill_gcode_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Заполняет startGcode/endGcode в params резолвнутыми значениями.
+
+        Пустое поле в params означает «использовать подтянутый из профиля
+        или дефолт» — здесь оно заменяется фактическим gcode для UI.
+        """
+        params = dict(params)
+        start, end = self.resolved_start_end(params)
+        params["startGcode"] = start
+        params["endGcode"] = end
+        return params
+
+    def _default_gcode(self, params: Dict[str, Any]) -> tuple[str, str]:
+        """Дефолтные start/end gcode с подставленными плейсхолдерами."""
+        start = apply_placeholders(DEFAULT_START_GCODE, params)
+        end = apply_placeholders(DEFAULT_END_GCODE, params)
+        return start, end
+
     def _on_get_state(self, _message: Dict[str, Any]) -> None:
+        params = self._fill_gcode_params(self.get_params())
+        start, end = self._default_gcode(params)
         self._post(
             {
                 "type": "state",
-                "params": self.get_params(),
+                "params": params,
                 "settings": self.get_settings(),
                 "has_gcode": self._gcode is not None,
                 "ui": self._ui_bundle(),
+                "default_start_gcode": start,
+                "default_end_gcode": end,
             }
         )
 
@@ -133,22 +156,68 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         self.apply_extruder_presets(params, result["extruder"])
         self.set_params(params)
         self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+        params = self._fill_gcode_params(self.get_params())
+        start, end = self._default_gcode(params)
         self._post(
             {
                 "type": "pulled",
-                "params": self.get_params(),
+                "params": params,
                 "extruder": result["extruder"],
                 "status": "status.pull_ok",
+                "default_start_gcode": start,
+                "default_end_gcode": end,
             }
         )
 
     def _on_reset(self, _message: Dict[str, Any]) -> None:
         self.reset_params()
+        self.set_start_end_gcode("", "")
+        params = self._fill_gcode_params(self.get_params())
+        start, end = self._default_gcode(params)
         self._post(
             {
                 "type": "reset",
-                "params": self.get_params(),
+                "params": params,
                 "status": "status.reset_ok",
+                "default_start_gcode": start,
+                "default_end_gcode": end,
+            }
+        )
+
+    # --- G-code по умолчанию ---
+
+    def _on_default_gcode(self, message: Dict[str, Any]) -> None:
+        """Кнопка «По умолчанию»: подставляет дефолтный gcode в поле."""
+        field = str(message.get("field", ""))
+        if field not in ("startGcode", "endGcode"):
+            _LOGGER.warning("Неизвестное поле gcode: %s", field)
+            return
+        params = self.get_params()
+        default = DEFAULT_START_GCODE if field == "startGcode" else DEFAULT_END_GCODE
+        gcode = apply_placeholders(default, params)
+        params[field] = gcode
+        self.set_params(params)
+        self._post(
+            {
+                "type": "default_gcode_set",
+                "field": field,
+                "gcode": gcode,
+                "params": self.get_params(),
+            }
+        )
+
+    def _on_recalc_default_gcode(self, message: Dict[str, Any]) -> None:
+        """Live-пересчёт дефолтных gcode при изменении размеров стола."""
+        params = self.get_params()
+        incoming = message.get("params")
+        if isinstance(incoming, dict):
+            params.update(incoming)
+        start, end = self._default_gcode(params)
+        self._post(
+            {
+                "type": "default_gcode_updated",
+                "start_gcode": start,
+                "end_gcode": end,
             }
         )
 

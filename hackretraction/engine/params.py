@@ -190,12 +190,14 @@ class ParamsMixin(CoreMixin):
     def resolved_start_end(self, params: Dict[str, Any]) -> tuple[str, str]:
         """Возвращает (start_gcode, end_gcode) с подставленными плейсхолдерами.
 
-        Использует подтянутые из профиля gcode; если их нет — дефолты из
-        constants.py. Плейсхолдеры OrcaSlicer подставляются из параметров.
+        Приоритет: отредактированный пользователем gcode из params →
+        подтянутый из профиля → дефолт из constants.py. Плейсхолдеры
+        OrcaSlicer подставляются из параметров.
         """
-        start, end = self.get_start_end_gcode()
-        start = apply_placeholders(start or DEFAULT_START_GCODE, params)
-        end = apply_placeholders(end or DEFAULT_END_GCODE, params)
+        start = params.get("startGcode") or self._start_gcode or DEFAULT_START_GCODE
+        end = params.get("endGcode") or self._end_gcode or DEFAULT_END_GCODE
+        start = apply_placeholders(start, params)
+        end = apply_placeholders(end, params)
         return start, end
 
     def _resolve_params_for_gen(self, incoming: Optional[Dict[str, Any]]) -> Dict[str, Any]:

@@ -18,6 +18,9 @@ from ..logging import _LOGGER
 # Сигнатура отправки результата в UI (устанавливается плагином).
 PostSink = Callable[[Dict[str, Any]], None]
 
+# Параметры, хранящие строки (gcode), а не числа.
+_STRING_PARAM_KEYS = ("customGcode", "startGcode", "endGcode")
+
 
 class CoreMixin:
     """Конфигурация и состояние движка."""
@@ -115,11 +118,11 @@ class CoreMixin:
         return dict(self._params)
 
     def set_params(self, params: Dict[str, Any]) -> None:
-        """Обновляет параметры (числовые — float, customGcode — строка)."""
+        """Обновляет параметры (числовые — float, строковые — str)."""
         for key, value in params.items():
             if key not in DEFAULT_PARAMS:
                 continue
-            if key == "customGcode":
+            if key in _STRING_PARAM_KEYS:
                 self._params[key] = str(value)
             else:
                 try:
