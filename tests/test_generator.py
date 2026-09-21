@@ -128,7 +128,7 @@ def test_front_label_printed() -> None:
     assert "G1 F2100 X117.80 Y128.00 E0.16128" in gcode
     # ретракт между штрихами буквы — параметризованный (srd=0.8, srs=5.0)
     assert "G1 F300 E-0.80" in gcode
-    assert "G1 F300 E+0.80" in gcode
+    assert "G1 F300 E0.80" in gcode
     # второй штрих H: (0,3.5)->(5,3.5) -> abs (118,124.5)->(123,124.5),
     # наружный контур Y124.7, внутренний Y124.3
     assert "G0 F9000 X118.00 Y124.70" in gcode

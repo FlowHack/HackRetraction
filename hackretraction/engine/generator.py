@@ -241,7 +241,7 @@ def _stroke_text(
             lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(py, 2)}")
 
             if is_retracted:
-                lines.append(f"G1 F{int(srs * 60)} E+{_fmt(srd, 2)}")
+                lines.append(f"G1 F{int(srs * 60)} E{_fmt(srd, 2)}")
                 is_retracted = False
 
             # 5. Печатаем периметр буквы (50% от основной скорости)
@@ -271,61 +271,53 @@ def _local_raft(
     x1: float,
     y1: float,
     ps: float,
-    ev_start: float,
     vertical: bool = False,
 ) -> float:
     """Локальная подложка под башней: зигзаг в ограниченной области.
 
     Режим M83 (относительная экструзия), перед началом — G92 E0.
-    E-приращения — _e_value(params, длина_линии) * 1.25, шаг 1 мм,
+    Каждая команда E — приращение текущего отрезка:
+    _e_value(params, длина_линии) * 1.25, шаг 1 мм,
     скорость ps*60/2 (как у общей подложки). vertical=True — линии
     идут по Y (как слой 2 общей подложки), иначе — по X (слой 1).
-    Возвращает конечное значение ev.
+    Возвращает 0.0 (фиктивное значение, сигнатура сохранена).
     """
-    ev = ev_start
+    feed = f"G1 F{int(ps * 60 / 2)}"
     if not vertical:
         # Горизонтальные линии (по X), переходы по краю — 1 мм по Y
         ev_x_inc = _e_value(params, x1 - x0) * 1.25
-        ev_y_inc_1mm = _e_value(params, 1.0) * 1.25
+        ev_1mm = _e_value(params, 1.0) * 1.25
         y = y0
         while y <= y1:
-            ev += ev_x_inc
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev_x_inc, 5)}")
             y += 1
             if y > y1:
                 break
-            ev += ev_y_inc_1mm
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x1, 2)} Y{_fmt(y, 2)} E{_fmt(ev_1mm, 5)}")
 
-            ev += ev_x_inc
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev_x_inc, 5)}")
             y += 1
             if y > y1:
                 break
-            ev += ev_y_inc_1mm
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x0, 2)} Y{_fmt(y, 2)} E{_fmt(ev_1mm, 5)}")
     else:
         # Вертикальные линии (по Y), переходы по краю — 1 мм по X
         ev_y_inc = _e_value(params, y1 - y0) * 1.25
-        ev_x_inc_1mm = _e_value(params, 1.0) * 1.25
+        ev_1mm = _e_value(params, 1.0) * 1.25
         x = x0
         while x <= x1:
-            ev += ev_y_inc
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev_y_inc, 5)}")
             x += 1
             if x > x1:
                 break
-            ev += ev_x_inc_1mm
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x, 2)} Y{_fmt(y1, 2)} E{_fmt(ev_1mm, 5)}")
 
-            ev += ev_y_inc
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev, 5)}")
+            lines.append(f"{feed} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev_y_inc, 5)}")
             x += 1
             if x > x1:
                 break
-            ev += ev_x_inc_1mm
-            lines.append(f"G1 F{int(ps * 60 / 2)} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev, 5)}")
-    return ev
+            lines.append(f"{feed} X{_fmt(x, 2)} Y{_fmt(y0, 2)} E{_fmt(ev_1mm, 5)}")
+    return 0.0
 
 
 def _tower_layer(
@@ -629,7 +621,7 @@ def generate_gcode(
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
     lines.append(f";{_c['layer']} 3{_c['local_raft']}")
-    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, 0.0)
+    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps)
 
     # --- Слой 4: буквы → переезд → локальная подложка ---
     # Переход локальная подложка → буквы (слой 4): ретракт → G0 XY → G0 Z
@@ -643,7 +635,7 @@ def generate_gcode(
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
     lines.append("G92 E0 ; Сброс счетчика экструдера")
     lines.append(f";{_c['layer']} 4{_c['local_raft']}")
-    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, 0.0, vertical=True)
+    _local_raft(lines, params, lraft_x0, lraft_y0, lraft_x1, lraft_y1, ps, vertical=True)
 
     # --- Переход локальная подложка → башня (слой 5) ---
     lines.append(f"G1 F{int(srs * 60)} E-{_fmt(srd, 2)}")
