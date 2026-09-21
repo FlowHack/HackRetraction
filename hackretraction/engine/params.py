@@ -112,6 +112,30 @@ def parse_gcode(text: str) -> Dict[str, Any]:
     return params
 
 
+def _parse_printable_area(area: Any) -> Optional[tuple[float, float]]:
+    """Парсит printable_area в (ширина, глубина) или None.
+
+    Формат OrcaSlicer — 4 точки прямоугольника: "0x0,325x0,325x325,0x325"
+    (x0,y0, x1,y0, x1,y1, x0,y1). Значение может прийти строкой или списком.
+    """
+    if isinstance(area, str):
+        parts = [p.strip() for p in area.split(",")]
+    elif isinstance(area, (list, tuple)):
+        parts = [str(p).strip() for p in area]
+    else:
+        return None
+    if len(parts) < 4:
+        return None
+    try:
+        x1 = float(parts[2].split("x")[0])
+        y1 = float(parts[2].split("x")[1])
+    except (ValueError, IndexError):
+        return None
+    if x1 <= 0 or y1 <= 0:
+        return None
+    return x1, y1
+
+
 class ParamsMixin(CoreMixin):
     """Подтягивание параметров, стартового/конечного gcode и типа экструдера."""
 
@@ -149,6 +173,17 @@ class ParamsMixin(CoreMixin):
                         result["params"][ui_key] = float(value)
                 except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                     _LOGGER.debug("Нет параметра %s в профиле: %s", preset_key, exc)
+
+            # Размеры стола: printable_width/printable_depth есть не у всех
+            # принтеров — fallback на printable_area (4 точки прямоугольника).
+            if "dimensionX" not in result["params"] or "dimensionY" not in result["params"]:
+                try:
+                    size = _parse_printable_area(_getv("printable_area"))
+                    if size is not None:
+                        result["params"]["dimensionX"] = size[0]
+                        result["params"]["dimensionY"] = size[1]
+                except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                    _LOGGER.debug("Нет printable_area в профиле: %s", exc)
 
             # Стартовый/конечный gcode (пусто — дефолт)
             try:

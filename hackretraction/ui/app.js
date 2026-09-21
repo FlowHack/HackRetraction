@@ -572,6 +572,7 @@ function bindToolbar() {
   var map = {
     "btn-help": function () { openHelp(); },
     "btn-pull": function () { post({ type: "pull" }); },
+    "btn-reset": function () { post({ type: "reset" }); },
     "btn-generate": function () { toggleGenerateMenu(); },
     "gen-copy": function () {
       pendingAction = "copy";

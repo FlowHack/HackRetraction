@@ -7,7 +7,7 @@ import pytest
 
 from hackretraction.engine import _HackRetractionEngine
 from hackretraction.engine.generator import generate_gcode
-from hackretraction.engine.params import apply_placeholders, parse_gcode
+from hackretraction.engine.params import _parse_printable_area, apply_placeholders, parse_gcode
 from hackretraction.errors import ExportError, ProfileError
 
 
@@ -234,3 +234,57 @@ def test_resolved_start_end_priority():
     params["startGcode"] = "G28 ; пользователь"
     start, _ = engine.resolved_start_end(params)
     assert start == "G28 ; пользователь"
+
+
+def test_parse_printable_area_string():
+    """printable_area строкой: '0x0,325x0,325x325,0x325' -> (325, 325)."""
+    assert _parse_printable_area("0x0,325x0,325x325,0x325") == (325.0, 325.0)
+
+
+def test_parse_printable_area_list():
+    """printable_area списком (как в JSON-профилях Orca)."""
+    area = ["0x0", "325x0", "325x325", "0x325"]
+    assert _parse_printable_area(area) == (325.0, 325.0)
+
+
+def test_parse_printable_area_invalid():
+    """Мусорные значения printable_area -> None."""
+    assert _parse_printable_area(None) is None
+    assert _parse_printable_area("0x0,0x0,0x0,0x0") is None
+    assert _parse_printable_area("abc") is None
+    assert _parse_printable_area(42) is None
+
+
+def test_extruder_presets_direct():
+    """Пресет direct: старт 1.0/шаг 0.1, скорость 5.0/шаг 2.0."""
+    from hackretraction.constants import EXTRUDER_PRESETS
+
+    preset = EXTRUDER_PRESETS["direct"]
+    assert preset["startRetractiondistance"] == 1.0
+    assert preset["incrementRetractiondistance"] == 0.1
+    assert preset["startRetractionspeed"] == 5.0
+    assert preset["incrementRetractionspeed"] == 2.0
+
+
+def test_extruder_presets_bowden():
+    """Пресет bowden совпадает с дефолтами генератора."""
+    from hackretraction.constants import DEFAULT_PARAMS, EXTRUDER_PRESETS
+
+    preset = EXTRUDER_PRESETS["bowden"]
+    for key in ("startRetractiondistance", "incrementRetractiondistance",
+                "startRetractionspeed", "incrementRetractionspeed"):
+        assert preset[key] == DEFAULT_PARAMS[key], key
+
+
+def test_handle_reset_outside_orca_defaults():
+    """Reset вне Orca: всё к дефолтам, gcode-поля — дефолтные."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.set_params({"NumTests": 99, "startRetractiondistance": 3.0})
+    engine.handle_message({"type": "reset"})
+    msg = messages[-1]
+    assert msg["type"] == "reset"
+    assert msg["params"]["NumTests"] == 15
+    assert msg["params"]["startRetractiondistance"] == 0.5
+    assert msg["params"]["startGcode"] == msg["default_start_gcode"]

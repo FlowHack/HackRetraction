@@ -137,6 +137,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.endGcode": "Printer end G-code. Pre-filled from your printer profile; edit if needed.",
         "t.locked": "Field is locked because the increment is already set for: {param}",
         "t.pull": "Load base settings from your printer profile (nozzle, bed size, temperatures, speeds). The plugin does this on startup, but click if the values look wrong.",
+        "t.reset": "Reset all values: profile-pulled ones are re-pulled from the profile, the rest go to defaults.",
         "t.load": "Load a previously generated GCODE file to restore its parameters.",
     },
     "ru": {
@@ -259,6 +260,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.endGcode": "Конечный G-code принтера. Предзаполняется из профиля; можно отредактировать.",
         "t.locked": "Поле заблокировано, т.к. «Шаг» уже указан у параметра «{param}»",
         "t.pull": "Загрузить базовые настройки из профиля принтера (сопло, размеры стола, температуры, скорости). Плагин делает это при запуске, но нажмите, если значения выглядят неверно.",
+        "t.reset": "Сбросить все значения: подтягиваемые из профиля — подтянутся заново, остальные — к дефолтам.",
         "t.load": "Загрузить ранее сгенерированный GCODE-файл, чтобы восстановить его параметры.",
     },
     "sr": {
@@ -381,6 +383,7 @@ I18N_PY: dict[str, dict[str, str]] = {
         "t.endGcode": "Završni G-code štampača. Popunjava se iz profila; možete ga izmeniti.",
         "t.locked": "Polje je zaključano jer je korak već zadat za parametar: {param}",
         "t.pull": "Učitaj osnovna podešavanja iz profila štampača (mlaznica, dimenzije stola, temperature, brzine). Plugin to radi pri pokretanju, ali kliknite ako vrednosti izgledaju pogrešno.",
+        "t.reset": "Resetuj sve vrednosti: one iz profila se ponovo preuzimaju, ostale idu na podrazumevane.",
         "t.load": "Učitaj prethodno generisan GCODE fajl da vratiš njegove parametre.",
     },
 }

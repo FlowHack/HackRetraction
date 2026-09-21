@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from ..constants import DEFAULT_END_GCODE, DEFAULT_START_GCODE
+from ..constants import DEFAULT_END_GCODE, DEFAULT_PARAMS, DEFAULT_START_GCODE
 from ..errors import ExportError, ProfileError
 from ..i18n import I18N_COMMENTS
 from ..logging import _LOGGER
@@ -170,8 +170,17 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         )
 
     def _on_reset(self, _message: Dict[str, Any]) -> None:
-        self.reset_params()
-        self.set_start_end_gcode("", "")
+        """Сброс: подтягиваемые из профиля значения — заново из профиля,
+        остальные — к дефолтам. Если профиль недоступен — всё к дефолтам."""
+        result = self.pull_from_profile()
+        params = dict(DEFAULT_PARAMS)
+        if result["ok"]:
+            params.update(result["params"])
+            self.apply_extruder_presets(params, result["extruder"])
+            self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+        else:
+            self.set_start_end_gcode("", "")
+        self.set_params(params)
         params = self._fill_gcode_params(self.get_params())
         start, end = self._default_gcode(params)
         self._post(

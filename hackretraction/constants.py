@@ -53,18 +53,28 @@ START_GCODE_KEY = "machine_start_gcode"
 END_GCODE_KEY = "machine_end_gcode"
 
 # Ключи определения типа экструдера (bowden/direct drive).
-EXTRUDER_ID_KEYS: tuple[str, str] = ("printer_extruder_id", "printer_extruder_variant")
+# printer_extruder_variant — «Direct Drive Standard»; extruder_type — «Direct Drive».
+EXTRUDER_ID_KEYS: tuple[str, str, str] = (
+    "printer_extruder_id",
+    "printer_extruder_variant",
+    "extruder_type",
+)
 
 # Стартовые значения для типа экструдера: bowden требует большего втягивания
-# и более высокой скорости, чем direct drive.
+# и более высокой скорости, чем direct drive. Значения — старт и шаг для
+# расстояния втягивания и скорости втягивания.
 EXTRUDER_PRESETS: dict[str, dict[str, float]] = {
     "bowden": {
-        "startRetractiondistance": 1.0,
-        "startRetractionspeed": 30.0,
+        "startRetractiondistance": 0.5,
+        "incrementRetractiondistance": 0.5,
+        "startRetractionspeed": 10.0,
+        "incrementRetractionspeed": 10.0,
     },
     "direct": {
-        "startRetractiondistance": 0.5,
-        "startRetractionspeed": 10.0,
+        "startRetractiondistance": 1.0,
+        "incrementRetractiondistance": 0.1,
+        "startRetractionspeed": 5.0,
+        "incrementRetractionspeed": 2.0,
     },
 }
 
