@@ -19,7 +19,7 @@
   надписи тоже в G90: скелет буквы переводится в абсолютные координаты
   стола, вокруг каждого штриха строится U-образная петля из двух
   эквидистант;
-- подложка — сплошной зигзаг 90x80 с выступом спереди (Y-) под надпись:
+- подложка — сплошной зигзаг 70x73; надпись масштабирована 0.7 по ширине башни:
   слои 1-2 заливаются от края до края без вырезов, буквы печатаются
   поверх подложки выпуклыми линиями (не вырезаются из неё);
 - переезды между фазами — единый паттерн: ретракт → G0 XY → G0 Z →
@@ -179,7 +179,8 @@ _STROKE_FONT: Dict[str, List[List[Tuple[float, float]]]] = {
     "E": [[(5, 0), (0, 0), (0, 7), (5, 7)], [(0, 3.5), (4, 3.5)]],
     "T": [[(0, 0), (5, 0)], [(2.5, 0), (2.5, 7)]],
     "I": [[(2.5, 0), (2.5, 7)]],
-    "O": [[(1.5, 0), (3.5, 0), (5, 1.5), (5, 5.5), (3.5, 7), (1.5, 7), (0, 5.5), (0, 1.5), (1.5, 0)]],
+    "O": [[(1.5, 0), (3.5, 0), (5, 1.5), (5, 5.5), (3.5, 7), (1.5, 7),
+           (0, 5.5), (0, 1.5), (1.5, 0)]],
     "N": [[(0, 7), (0, 0), (5, 7), (5, 0)]],
 }
 
@@ -195,6 +196,7 @@ def _stroke_text(
     ps: float,
     ts: float,
     start_retracted: bool = False,
+    scale: float = 0.7,
 ) -> bool:
     """Печать текста жирными периметрами (2 стенки по нормалям, G90).
 
@@ -203,6 +205,10 @@ def _stroke_text(
     Вокруг каждого штриха строится U-образная петля из двух эквидистант
     (_offset_polyline на ±пол-сопла), которая печатается как цельный
     периметр. Между штрихами и буквами — ретракт.
+
+    scale — масштаб скелета букв: координаты штрихов и шаг между буквами
+    умножаются на scale, offset (nd/2) не масштабируется — толщина линий
+    остаётся 2×nd.
 
     G90/M83/G92 E0 эмитятся один раз в generate_gcode перед первым
     вызовом — здесь они не дублируются. Сопло остаётся втянутым после
@@ -221,12 +227,12 @@ def _stroke_text(
     for ch in text.upper():
         strokes = _STROKE_FONT.get(ch)
         if not strokes:
-            current_x += 6
+            current_x += 6 * scale
             continue
 
         for stroke in strokes:
             # 1. Переводим штрих в абсолютные координаты (инвертируя Y)
-            abs_stroke = [(current_x + px, start_y - py) for px, py in stroke]
+            abs_stroke = [(current_x + px * scale, start_y - py * scale) for px, py in stroke]
 
             # 2. Высчитываем наружный и внутренний контур
             path1 = _offset_polyline(abs_stroke, offset)
@@ -258,7 +264,7 @@ def _stroke_text(
             lines.append(f"G1 F{int(srs * 60)} E-{_fmt(srd, 2)}")
             is_retracted = True
 
-        current_x += 6
+        current_x += 6 * scale
 
     return is_retracted
 
@@ -526,17 +532,24 @@ def generate_gcode(
     # --- Start Movement (абсолютные координаты, G90) ---
     cx = dx / 2
     cy = dy / 2
-    raft_x0 = cx - 45
-    raft_y0 = cy - 40
-    raft_x1 = cx + 45
-    raft_y1 = cy + 40
+
+    # Текст (масштаб 0.7: ширина 14 букв ~ 58 мм, высота 4.9 мм)
+    text_scale = 0.7
+    text_x = cx - 29.0
+    # Базовая линия текста (верх), зазор 1 мм до локальной подложки (cy-30)
+    text_y = cy - 31.0
+
+    # Общая подложка уменьшена до 70x73 мм
+    # X: ±35 мм от центра (5 мм отступа от локальной подложки 60x60)
+    raft_x0 = cx - 35.0
+    raft_x1 = cx + 35.0
+    # Y: отступ 2.1 мм снизу текста и 5 мм сверху башни
+    raft_y0 = cy - 38.0
+    raft_y1 = cy + 35.0
+
     tower_x = cx - 25
     tower_y = cy - 25
-    text_x = cx - 42
-    text_y = cy - 32  # базовая линия текста; буквы растут вверх до Y=cy-39,
-    # оставаясь внутри подложки (её передний край — cy-40)
-    # Локальная подложка под башней: квадрат 60x60, центрирован по центру
-    # башни (cx, cy); башня 50x50 — подложка выступает на 5 мм с каждой стороны
+    # Локальная подложка под башней (без изменений): квадрат 60x60
     lraft_x0 = cx - 30
     lraft_y0 = cy - 30
     lraft_x1 = cx + 30
@@ -550,7 +563,7 @@ def generate_gcode(
     lines.append(f"G1 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh, 2)}")
     lines.append(";")
 
-    # --- Рафт (Слой 1): горизонталь, шаг 1 мм, E под длину линии 90 мм ---
+    # --- Рафт (Слой 1): горизонталь, шаг 1 мм, E под длину линии 70 мм ---
     ev = 0.0
     ev_x_inc = _e_value(params, raft_x1 - raft_x0) * 1.25
     # Экструзия для рабочего перехода по краю (1 мм вдоль края)
@@ -581,7 +594,7 @@ def generate_gcode(
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(raft_x0, 2)} Y{_fmt(raft_y0, 2)} Z{_fmt(lh * 2, 2)}")
     lines.append(f"G1 F1800 E{_fmt(ev, 5)}")
 
-    # --- Рафт (Слой 2): вертикаль, шаг 1 мм, E под длину линии 80 мм ---
+    # --- Рафт (Слой 2): вертикаль, шаг 1 мм, E под длину линии 73 мм ---
     ev_y_inc = _e_value(params, raft_y1 - raft_y0) * 1.25
     lines.append(";" + _c["layer"] + " 2")
     x = raft_x0
@@ -615,7 +628,10 @@ def generate_gcode(
     lines.append(f";{_c['layer']} 3 (Text)")
     # Сопло входит втянутым (start_retracted=True) и остаётся втянутым
     # после последнего штриха — переезд к подложке безопасен
-    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts, start_retracted=True)
+    _stroke_text(
+        lines, params, FRONT_LABEL, text_x, text_y, ps, ts,
+        start_retracted=True, scale=text_scale,
+    )
 
     # Переход буквы → локальная подложка (слой 3): сопло втянуто, Z не меняется
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
@@ -632,7 +648,10 @@ def generate_gcode(
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x, 2)} Y{_fmt(text_y, 2)}")
     lines.append(f"G0 F{int(ts) * 60} Z{_fmt(lh * 4, 2)}")
     lines.append(f";{_c['layer']} 4 (Text)")
-    _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts, start_retracted=True)
+    _stroke_text(
+        lines, params, FRONT_LABEL, text_x, text_y, ps, ts,
+        start_retracted=True, scale=text_scale,
+    )
 
     # Переход буквы → локальная подложка (слой 4): сопло втянуто, Z не меняется
     lines.append(f"G0 F{int(ts) * 60} X{_fmt(lraft_x0, 2)} Y{_fmt(lraft_y0, 2)}")
