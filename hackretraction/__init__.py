@@ -25,15 +25,21 @@ if orca is None:
             pass
 
 else:
-    from .orca_compat import _SCRIPT_BASE
-    from .plugin import HackRetractionWindow
+    from .orca_compat import _PAGES_BASE, _SCRIPT_BASE
+    from .plugin import HackRetractionTab, HackRetractionWindow
 
     @orca.plugin
     class HackRetractionPlugin(orca.base):  # type: ignore[no-redef]
         """Точка входа плагина HackRetraction."""
 
         def register_capabilities(self) -> None:
-            """Регистрирует Script-капабилити (окно генератора)."""
+            """Регистрирует Pages-капабилити (вкладку), иначе Script-fallback.
+
+            Orca сам инстанцирует переданный класс (см. Registry wiki:
+            ``orca.register_capability(Cls)``), поэтому передаём классы.
+            """
             host = orca
-            if _SCRIPT_BASE is not None:
+            if _PAGES_BASE is not None:
+                host.register_capability(HackRetractionTab)  # type: ignore[attr-defined]
+            elif _SCRIPT_BASE is not None:
                 host.register_capability(HackRetractionWindow)  # type: ignore[attr-defined]

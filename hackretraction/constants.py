@@ -43,10 +43,13 @@ PRESET_KEYS: dict[str, str] = {
     "layerHeight": "layer_height",
     "extrusionMultiplier": "filament_flow_ratio",
     "speedTravel": "travel_speed",
-    "printSpeed": "default_print_speed",
+    "printSpeed": "outer_wall_speed",
     "tempStarthotend": "nozzle_temperature",
-    "tempBed": "bed_temperature",
+    "tempBed": "hot_plate_temp",
 }
+
+# Ключи обдува: speedFan вычисляется как полусумма min/max (см. pull_from_profile).
+FAN_SPEED_KEYS: tuple[str, str] = ("fan_min_speed", "fan_max_speed")
 
 # Ключи стартового/конечного gcode принтера (секция printer).
 START_GCODE_KEY = "machine_start_gcode"
@@ -157,6 +160,16 @@ PARAM_LIMITS: dict[str, tuple[float, float]] = {
 
 # Имя файла по умолчанию для экспорта.
 DEFAULT_GCODE_FILENAME = "retraction_calibration.gcode"
+
+# Шаг стрелочек числовых полей (атрибут step). Остальные поля — "any".
+PARAM_STEPS: dict[str, float] = {
+    "startRetractiondistance": 0.1,
+    "incrementRetractiondistance": 0.1,
+    "layerHeight": 0.1,
+    "nozzleDiameter": 0.1,
+    "filamentDiameter": 0.1,
+    "extrusionMultiplier": 0.01,
+}
 
 # Реквизиты для поддержки проекта. Единый источник данных для UI: при смене
 # адреса достаточно обновить эту константу. url пустой, если ссылки нет.

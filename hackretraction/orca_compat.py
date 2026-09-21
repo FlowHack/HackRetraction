@@ -24,3 +24,11 @@ try:
     )
 except (ImportError, AttributeError):
     _SCRIPT_BASE = None
+
+# Базовый класс Pages-капабилити (вкладка в главном окне Orca Slicer).
+try:
+    _PAGES_BASE = getattr(
+        importlib.import_module("orca.pages"), "PagesPluginCapabilityBase", None
+    )
+except (ImportError, AttributeError):
+    _PAGES_BASE = None

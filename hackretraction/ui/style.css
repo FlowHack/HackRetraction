@@ -261,7 +261,7 @@ body {
 .input-wrap input[type="number"] {
   width: 84px;
   padding: 3px 6px;
-  padding-right: 30px;
+  padding-right: 20px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
@@ -269,20 +269,41 @@ body {
   font-size: 0.9em;
   font-family: var(--font-mono);
 }
+/* WebKit: нативные стрелки прижаты к правому краю с небольшим отступом. */
+.input-wrap input[type="number"]::-webkit-inner-spin-button,
+.input-wrap input[type="number"]::-webkit-outer-spin-button {
+  margin-right: 2px;
+  opacity: 1;
+}
+/* Firefox: нативные стрелки не стилизуются — скрываем их (accept-вариант),
+   поле остаётся рабочим (ввод с клавиатуры, стрелки вверх/вниз). */
+@-moz-document url-prefix() {
+  .input-wrap input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+/* Стрелки спиннера в цвет темы (тёмная/светлая). */
+body[data-theme="dark"] .input-wrap input[type="number"] { color-scheme: dark; }
+body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light; }
 /* Заблокированное поле шага (другой инкремент уже задан). */
 .input-wrap input[type="number"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-/* Единица измерения — суффикс внутри поля, справа. */
+/* Единица измерения — суффикс внутри поля, слева от стрелок спиннера. */
 .input-wrap .unit {
   position: absolute;
-  right: 7px;
+  right: 20px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.72em;
   color: var(--muted);
   pointer-events: none;
+}
+/* Firefox: стрелок нет — суффикс можно прижать к краю. */
+@-moz-document url-prefix() {
+  .input-wrap .unit { right: 7px; }
 }
 .field textarea {
   grid-column: 1 / -1;

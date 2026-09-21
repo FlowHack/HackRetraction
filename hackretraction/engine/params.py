@@ -15,6 +15,7 @@ from ..constants import (
     END_GCODE_KEY,
     EXTRUDER_ID_KEYS,
     EXTRUDER_PRESETS,
+    FAN_SPEED_KEYS,
     PRESET_KEYS,
     START_GCODE_KEY,
 )
@@ -173,6 +174,21 @@ class ParamsMixin(CoreMixin):
                         result["params"][ui_key] = float(value)
                 except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                     _LOGGER.debug("Нет параметра %s в профиле: %s", preset_key, exc)
+
+            # Обдув: полусумма fan_min_speed и fan_max_speed (типично min=0 —
+            # получаем половину максимума; при ненулевом min учитывается и он).
+            try:
+                fan_min = _getv(FAN_SPEED_KEYS[0])
+                fan_max = _getv(FAN_SPEED_KEYS[1])
+                if (
+                    isinstance(fan_min, (int, float)) and not isinstance(fan_min, bool)
+                    and isinstance(fan_max, (int, float)) and not isinstance(fan_max, bool)
+                ):
+                    result["params"]["speedFan"] = round(
+                        (float(fan_min) + float(fan_max)) / 2, 1
+                    )
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                _LOGGER.debug("Нет обдува (fan_min/max) в профиле: %s", exc)
 
             # Размеры стола: printable_width/printable_depth есть не у всех
             # принтеров — fallback на printable_area (4 точки прямоугольника).

@@ -84,8 +84,10 @@ function buildForm(ui, params) {
       } else {
         /* Шаги инкрементальных параметров не могут быть отрицательными. */
         var min = STEP_KEYS.indexOf(key) >= 0 ? ' min="0"' : "";
+        /* Явный шаг стрелочек из ui.steps (иначе "any"). */
+        var step = (ui.steps && ui.steps[key]) || "any";
         html += '<span class="input-wrap">';
-        html += '<input type="number" step="any" data-param="' + key +
+        html += '<input type="number" step="' + step + '" data-param="' + key +
           '" value="' + esc(value) + '"' + min + ">";
         if (unit) {
           html += '<span class="unit">' + esc(unit) + "</span>";
@@ -162,7 +164,13 @@ function bindDefaultGcodeButtons() {
   var buttons = document.querySelectorAll("[data-default-gcode]");
   for (var i = 0; i < buttons.length; i++) {
     buttons[i].addEventListener("click", function () {
-      post({ type: "default_gcode", field: this.getAttribute("data-default-gcode") });
+      /* Передаём текущие значения формы: Python заменит ТОЛЬКО целевое
+         поле, не затирая пользовательский ввод в соседнем gcode-поле. */
+      post({
+        type: "default_gcode",
+        field: this.getAttribute("data-default-gcode"),
+        params: collectParams()
+      });
     });
   }
 }

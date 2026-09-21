@@ -25,7 +25,7 @@ version = { attr = "hackretraction.version.__version__" }
 packages = ["hackretraction", "hackretraction.engine", "hackretraction.ui"]
 
 [tool.setuptools.package-data]
-"hackretraction.ui" = ["*.css", "*.html", "*.js"]
+"hackretraction.ui" = ["*.css", "*.html", "*.js", "*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

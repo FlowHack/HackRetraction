@@ -192,25 +192,39 @@ class HandlersMixin(ParamsMixin, ExportMixin):
     # --- G-code по умолчанию ---
 
     def _on_default_gcode(self, message: Dict[str, Any]) -> None:
-        """Кнопка «По умолчанию»: подставляет дефолтный gcode в поле."""
+        """Кнопка «По умолчанию»: подставляет дефолтный gcode в поле.
+
+        Входящие params (текущие значения формы из JS) — база для подстановки
+        плейсхолдеров; заменяется ТОЛЬКО целевое поле. Соседнее gcode-поле
+        заполняется дефолтом, только если оно пустое — пользовательский ввод
+        в нём сохраняется.
+        """
         field = str(message.get("field", ""))
         if field not in ("startGcode", "endGcode"):
             _LOGGER.warning("Неизвестное поле gcode: %s", field)
             return
-        params = self.get_params()
+        incoming = message.get("params")
+        if not isinstance(incoming, dict):
+            incoming = self.get_params()
+        else:
+            # База — состояние движка, поверх — значения формы из JS: так
+            # плейсхолдеры не упадут, если какое-то поле формы пустое.
+            incoming = {**self.get_params(), **incoming}
         default = DEFAULT_START_GCODE if field == "startGcode" else DEFAULT_END_GCODE
-        gcode = apply_placeholders(default, params)
-        params[field] = gcode
-        self.set_params(params)
-        # Заполняем ОБА gcode-поля резолвнутыми значениями, чтобы JS
-        # setFormValues не затёр пустое второе поле (баг «пропадает gcode»).
-        params = self._fill_gcode_params(self.get_params())
+        incoming[field] = apply_placeholders(default, incoming)
+        # Соседнее gcode-поле: дефолт только если оно пустое/отсутствует,
+        # иначе пользовательский ввод сохраняется.
+        other = "endGcode" if field == "startGcode" else "startGcode"
+        if not incoming.get(other):
+            other_default = DEFAULT_END_GCODE if other == "endGcode" else DEFAULT_START_GCODE
+            incoming[other] = apply_placeholders(other_default, incoming)
+        self.set_params(incoming)
         self._post(
             {
                 "type": "default_gcode_set",
                 "field": field,
-                "gcode": gcode,
-                "params": params,
+                "gcode": incoming[field],
+                "params": self.get_params(),
             }
         )
 
