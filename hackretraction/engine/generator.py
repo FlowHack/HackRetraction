@@ -7,14 +7,15 @@
 - таблица "Variables by Height" идёт от 0 до nt-1 (консистентно с кодом
   калибровки, в оригинале — в обратном порядке);
 - на слоях 3-4 поверх подложки печатается надпись FRONT_LABEL
-  («HACKRETRACTION») выпуклыми линиями палочного шрифта (2 слоя высоты,
-  3 периметра со смещением старта по X) — ориентация куба (в оригинале
-  перед не помечался);
+  («HACKRETRACTION») жирными периметрами палочного шрифта (2 слоя высоты,
+  2 честных периметра по нормалям через _offset_polyline) — ориентация
+  куба (в оригинале перед не помечался);
 - перемещения — в АБСОЛЮТНЫХ координатах (G90): слайсеры корректно
   отображают превью только без G91. Подложка, надпись и башня
-  центрируются относительно стола и никогда не разъезжаются. Исключение —
-  штрихи букв надписи (G91): относительные координаты делают макрос
-  буквы легко перемещаемым;
+  центрируются относительно стола и никогда не разъезжаются. Штрихи букв
+  надписи тоже в G90: скелет буквы переводится в абсолютные координаты
+  стола, вокруг каждого штриха строится U-образная петля из двух
+  эквидистант;
 - подложка — сплошной зигзаг 90x80 с выступом спереди (Y-) под надпись:
   слои 1-2 заливаются от края до края без вырезов, буквы печатаются
   поверх подложки выпуклыми линиями (не вырезаются из неё).
@@ -116,6 +117,50 @@ def _corner_markers(
     return x, y
 
 
+def _offset_polyline(pts: List[Tuple[float, float]], offset: float) -> List[Tuple[float, float]]:
+    """Вычисляет эквидистанту (смещение) полилинии по нормалям."""
+    if len(pts) < 2:
+        return pts
+    out = []
+    for i, p in enumerate(pts):
+        p_prev = pts[i - 1] if i > 0 else None
+        p_next = pts[i + 1] if i < len(pts) - 1 else None
+
+        n1 = n2 = None
+        if p_prev:
+            dx, dy = p[0] - p_prev[0], p[1] - p_prev[1]
+            L = (dx**2 + dy**2) ** 0.5
+            if L > 0:
+                n1 = (-dy / L, dx / L)
+        if p_next:
+            dx, dy = p_next[0] - p[0], p_next[1] - p[1]
+            L = (dx**2 + dy**2) ** 0.5
+            if L > 0:
+                n2 = (-dy / L, dx / L)
+
+        if not n1:
+            n1 = n2
+        if not n2:
+            n2 = n1
+
+        # Вырожденные сегменты (L == 0) — нормали не вычислены, точку пропускаем
+        if n1 is None or n2 is None:
+            continue
+
+        nx, ny = n1[0] + n2[0], n1[1] + n2[1]
+        L = (nx**2 + ny**2) ** 0.5
+        if L == 0:
+            nx, ny = -n1[1], n1[0]
+        else:
+            nx, ny = nx / L, ny / L
+            dot = nx * n1[0] + ny * n1[1]
+            if dot > 0.2:  # Лимит остроты углов во избежание бесконечных шипов
+                nx, ny = nx / dot, ny / dot
+
+        out.append((p[0] + nx * offset, p[1] + ny * offset))
+    return out
+
+
 # Буквы разбиты на отдельные штрихи (списки координат), чтобы сопло
 # могло перемещаться с выключенной экструзией (G0) внутри сложных букв.
 # В данных шрифта Y+ — вниз; при печати ось Y инвертируется (см. _stroke_text),
@@ -140,46 +185,70 @@ def _stroke_text(
     lines: List[str],
     params: Dict[str, float],
     text: str,
+    start_x: float,
+    start_y: float,
     ps: float,
     ts: float,
 ) -> None:
-    """Печать текста выпуклыми штрихами (палочный шрифт, G91).
+    """Печать текста жирными периметрами (2 стенки по нормалям, G90).
 
-    Каждая буква — список отдельных штрихов. Между штрихами — ретракт
-    (G1 E-0.5), холостой переезд G0 к началу следующего штриха и возврат
-    пластика (G1 E0.5), чтобы элементы буквы не слипались и не было
-    диагональных паразитных линий. Ось Y инвертируется: в данных шрифта
-    Y+ — вниз, на столе Y+ — вверх; буквы стоят на базовой линии.
+    Скелет буквы переводится в абсолютные координаты стола (ось Y
+    инвертируется: в данных шрифта Y+ — вниз, на столе Y+ — вверх).
+    Вокруг каждого штриха строится U-образная петля из двух эквидистант
+    (_offset_polyline на ±пол-сопла), которая печатается как цельный
+    периметр. Между штрихами и буквами — ретракт.
     """
-    lines.append("G91")
+    lines.append("G90")
+    nd = float(params["nozzleDiameter"])
+    offset = nd / 2.0  # Смещение на пол-сопла (дает суммарно 2 периметра толщины)
+
+    current_x = start_x
+    is_retracted = False
+
     for ch in text.upper():
         strokes = _STROKE_FONT.get(ch)
         if not strokes:
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(6, 2)} Y0")
+            current_x += 6
             continue
 
         for stroke in strokes:
-            px, py = stroke[0]
-            # Холостой переезд к началу штриха
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(-py, 2)}")
+            # 1. Переводим штрих в абсолютные координаты (инвертируя Y)
+            abs_stroke = [(current_x + px, start_y - py) for px, py in stroke]
 
-            for tx, ty in stroke[1:]:
-                dx, dy = tx - px, -(ty - py)
-                dist = (dx * dx + dy * dy) ** 0.5
+            # 2. Высчитываем наружный и внутренний контур
+            path1 = _offset_polyline(abs_stroke, offset)
+            path2 = _offset_polyline(abs_stroke, -offset)
+            path2.reverse()  # Разворачиваем для замкнутой петли
+
+            # 3. Соединяем в U-образный контур-периметр
+            full_path = path1 + path2 + [path1[0]]
+
+            # 4. Холостой ход к старту периметра
+            px, py = full_path[0]
+            lines.append(f"G0 F{int(ts) * 60} X{_fmt(px, 2)} Y{_fmt(py, 2)}")
+
+            if is_retracted:
+                lines.append(f"G1 F{int(ts) * 60} E0.50")
+                is_retracted = False
+
+            # 5. Печатаем периметр буквы
+            for tx, ty in full_path[1:]:
+                dx, dy = tx - px, ty - py
+                dist = (dx**2 + dy**2) ** 0.5
                 lines.append(
-                    f"G1 F{int(ps * 60)} X{_fmt(dx, 2)} Y{_fmt(dy, 2)} "
+                    f"G1 F{int(ps * 60)} X{_fmt(tx, 2)} Y{_fmt(ty, 2)} "
                     f"E{_fmt(_e_value(params, dist), 5)}"
                 )
                 px, py = tx, ty
 
-            # Ретракт и возврат в локальный (0,0) текущей буквы
+            # Делаем ретракт перед переходом к следующему штриху/букве
             lines.append(f"G1 F{int(ts) * 60} E-0.50")
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(-px, 2)} Y{_fmt(py, 2)}")
-            lines.append(f"G1 F{int(ts) * 60} E0.50")
+            is_retracted = True
 
-        # Сдвиг вправо к следующей букве
-        lines.append(f"G0 F{int(ts) * 60} X{_fmt(6, 2)} Y0")
-    lines.append("G90")
+        current_x += 6
+
+    if is_retracted:
+        lines.append(f"G1 F{int(ts) * 60} E0.50")
 
 
 def generate_gcode(
@@ -398,20 +467,14 @@ def generate_gcode(
     # Относительная экструзия (координаты — абсолютные, G90)
     lines.append("M83")
 
-    # --- Надпись HACKRETRACTION (слои 3-4, 2 периметра) ---
-    # Диагональное смещение (nd, -nd) гарантирует отсутствие самопересечений
-    # вертикальных и горизонтальных штрихов, давая чистые 2 стенки.
-    offsets = [(0, 0), (nd, -nd)]
-
+    # --- Надпись HACKRETRACTION (слои 3-4, 2 периметра по нормалям) ---
     for layer_offset in range(2):
         current_z = lh * (3 + layer_offset)
         lines.append(f";Layer {3 + layer_offset} (Text)")
         lines.append(f"G1 Z{_fmt(current_z, 2)}")
 
-        for ox, oy in offsets:
-            lines.append("G90")
-            lines.append(f"G0 F{int(ts) * 60} X{_fmt(text_x + ox, 2)} Y{_fmt(text_y + oy, 2)}")
-            _stroke_text(lines, params, FRONT_LABEL, ps, ts)
+        # Строим текст в абсолютных координатах без циклов дублирования
+        _stroke_text(lines, params, FRONT_LABEL, text_x, text_y, ps, ts)
 
     # ВОЗВРАТ НА ВЫСОТУ 3 СЛОЯ ДЛЯ СТАРТА БАШНИ
     lines.append("G90")

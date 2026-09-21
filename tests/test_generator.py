@@ -93,8 +93,8 @@ def test_calibration_geometry() -> None:
     assert sum(1 for l in lines if l.startswith("M106")) == nt
     assert sum(1 for l in lines if l.startswith("M104")) == nt
     # абсолютные координаты (G90), относительная экструзия (M83);
-    # G91 — только для штрихов букв надписи (2 слоя x 2 смещения = 4 раза)
-    assert "M83" in lines and "G90" in lines and lines.count("G91") == 4
+    # G91 больше не используется — текст строится в абсолютных координатах
+    assert "M83" in lines and "G90" in lines and lines.count("G91") == 0
     # конечный gcode вставлен в конец
     assert gcode.rstrip().endswith(";END")
 
@@ -114,24 +114,25 @@ def test_front_label_printed() -> None:
     )
     # слой 2: тоже зигзаг с G0-переходами до перехода к старту калибровки
     assert any(l.startswith("G0") for l in lines[i2:i3])
-    # переход к тексту (text_x=cx-42=118, text_y=cy-32=128)
-    assert "G0 F9000 X118.00 Y128.00" in gcode
-    # диагональное смещение для утолщения: (0,0) и (nd,-nd)
-    assert "G0 F9000 X118.40 Y127.60" in gcode
-    # старые осевые смещения больше не используются
+    # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
+    # offset = nd/2 = 0.2; наружный контур X118.2, внутренний X117.8
+    assert "G0 F9000 X118.20 Y128.00" in gcode
+    # U-петля: вниз по наружному контуру (dist 7 -> E0.16128),
+    # поперёк (dist 0.4 -> E0.00922), вверх по внутреннему
+    assert "G1 F4200 X118.20 Y121.00 E0.16128" in gcode
+    assert "G1 F4200 X117.80 Y121.00 E0.00922" in gcode
+    assert "G1 F4200 X117.80 Y128.00 E0.16128" in gcode
+    # ретракт между штрихами буквы и возврат пластика
+    assert "G1 F9000 E-0.50" in gcode
+    assert "G1 F9000 E0.50" in gcode
+    # второй штрих H: (0,3.5)->(5,3.5) -> abs (118,124.5)->(123,124.5),
+    # наружный контур Y124.7, внутренний Y124.3
+    assert "G0 F9000 X118.00 Y124.70" in gcode
+    assert "G1 F4200 X123.00 Y124.70 E0.11520" in gcode
+    # старые смещения стартовой точки больше не используются
+    assert "G0 F9000 X118.40 Y127.60" not in gcode
     assert "G0 F9000 X118.40 Y128.00" not in gcode
     assert "G0 F9000 X118.00 Y127.60" not in gcode
-    # первый штрих буквы H: (0,0)->(0,7), Y инвертирован (вверх, Y-),
-    # ev = eValue(7) = 0.16128
-    assert "G1 F4200 X0.00 Y-7.00 E0.16128" in gcode
-    # ретракт между штрихами буквы и возврат в локальный (0,0)
-    assert "G1 F9000 E-0.50" in gcode
-    assert "G0 F9000 X0.00 Y7.00" in gcode
-    assert "G1 F9000 E0.50" in gcode
-    # сдвиг вправо к следующей букве (шаг 6 мм)
-    assert "G0 F9000 X6.00 Y0" in gcode
-    # прыжок к началу буквы A: первый штрих pts[0]=(0,7) -> X0.00 Y-7.00
-    assert "G0 F9000 X0.00 Y-7.00" in gcode
     # текст печатается на 2 слоях (Z0.60 и Z0.80), затем возврат на Z0.60
     assert "G1 Z0.60" in gcode and "G1 Z0.80" in gcode
     # возврат к башне: СНАЧАЛА XY в центр, ЗАТЕМ опускание Z (безопасная зона)
