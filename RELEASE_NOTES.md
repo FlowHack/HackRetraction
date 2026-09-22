@@ -18,6 +18,6 @@
 
 ## Установка
 
-Через подписку OrcaCloud: [https://cloud.orcaslicer.com/p/XXXXXXXX](https://cloud.orcaslicer.com/p/XXXXXXXX)
+Через подписку OrcaCloud: [https://cloud.orcaslicer.com/p/3d2a46e70761](https://cloud.orcaslicer.com/p/3d2a46e70761)
 
 Либо локально: поместите `hackretraction-0.1.0-py3-none-any.whl` в `data_dir()/orca_plugins/` и перезапустите OrcaSlicer.

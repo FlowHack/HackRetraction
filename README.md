@@ -69,7 +69,7 @@
 
 ### Способ 1. Через OrcaCloud (рекомендуется)
 
-1. Откройте [страницу HackRetraction в OrcaCloud](https://cloud.orcaslicer.com/p/XXXXXXXX).
+1. Откройте [страницу HackRetraction в OrcaCloud](https://cloud.orcaslicer.com/p/3d2a46e70761).
 2. Оформите подписку на **HackRetraction**.
 3. После подписки плагин появится в Orca Slicer в разделе **File → Plugins** — установите его.
 
@@ -78,9 +78,6 @@
 1. Скачайте файл `hackretraction-<версия>-py3-none-any.whl` со страницы
    [**Releases**](https://github.com/FlowHack/HackRetraction/releases).
 2. Поместите его в `data_dir()/orca_plugins/` и перезапустите OrcaSlicer.
-
-> `data_dir()` — папка конфигурации OrcaSlicer. В Windows обычно `%APPDATA%\OrcaSlicer`;
-> открыть её можно через **File → Configuration folder**.
 
 ## 🚀 Запуск
 
