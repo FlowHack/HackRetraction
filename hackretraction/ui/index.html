@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HackRetraction</title>
+<style>/*STYLE*/</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="toolbar-left">
+      <button id="btn-help" class="btn help" title="Help">?</button>
+      <button id="btn-settings" class="btn icon">&#9881;</button>
+      <button id="btn-support" class="btn support" title="Support project">&#9829;</button>
+    </div>
+    <div class="toolbar">
+      <button id="btn-reset" class="btn" data-text="btn.reset" data-title="t.reset">Reset</button>
+      <button id="btn-load" class="btn" data-text="btn.load" data-title="t.load">Load GCODE</button>
+      <div class="gen-wrap">
+        <button id="btn-generate" class="btn primary" data-text="btn.generate">Generate GCODE</button>
+        <div id="generate-menu" class="dropdown hidden">
+          <button id="gen-copy" class="dropdown-item" data-text="btn.copy">Copy GCODE</button>
+          <button id="gen-save" class="dropdown-item" data-text="btn.save">Save to file</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <input type="file" id="file-input" accept=".gcode,.gco,.g,.nc,text/plain" hidden>
+
+  <main class="layout">
+    <section id="params-panel" class="panel params">
+      <!-- Поля параметров строятся JS из ui-бандла -->
+    </section>
+
+    <section id="preview-panel" class="panel preview">
+      <div class="preview-panel">
+        <div class="preview-block side">
+          <div class="preview-title" data-text="preview.side">Side</div>
+          <div class="preview-wrap"><div id="preview-side" class="tower"></div></div>
+        </div>
+        <div class="preview-block top">
+          <div class="preview-title" data-text="preview.top">Top</div>
+          <div class="preview-wrap"><div id="preview-top" class="topview"></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Тосты (fixed, справа сверху) -->
+<div id="toast-container"></div>
+
+
+<!-- Модалка настроек -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <span data-text="btn.settings">Settings</span>
+      <button class="modal-close" id="settings-close">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <label class="field">
+        <span data-text="set.theme">Theme</span>
+        <select id="set-theme">
+          <option value="auto" data-text="set.theme_auto">Auto</option>
+          <option value="dark" data-text="set.theme_dark">Dark</option>
+          <option value="light" data-text="set.theme_light">Light</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-text="set.font_size">Font size</span>
+        <span class="range-wrap">
+          <input type="range" id="set-font-size" min="12" max="20" step="1">
+          <span id="set-font-size-val" class="range-val">14</span>
+        </span>
+      </label>
+      <label class="field">
+        <span data-text="set.font">Font</span>
+        <select id="set-font">
+          <option value="system" data-text="set.font_system">System</option>
+          <option value="mono" data-text="set.font_mono">Monospace</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-text="set.language">Language</span>
+        <select id="set-language">
+          <option value="en">English</option>
+          <option value="ru">Русский</option>
+          <option value="sr">Srpski</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-text="set.comment_lang">G-code comments language</span>
+        <select id="set-comment-lang">
+          <option value="en">English</option>
+          <option value="ru">Русский</option>
+          <option value="sr">Srpski</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-text="set.firmware">Firmware type</span>
+        <select id="set-firmware">
+          <option value="klipper" data-text="set.firmware_klipper">Klipper</option>
+          <option value="marlin" data-text="set.firmware_marlin">Marlin</option>
+          <option value="reprapfirmware" data-text="set.firmware_reprapfirmware">RepRapFirmware</option>
+          <option value="repetier" data-text="set.firmware_repetier">Repetier</option>
+        </select>
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка поддержки -->
+<div id="support-modal" class="modal-overlay hidden">
+  <div class="modal support">
+    <div class="modal-head">
+      <span data-text="btn.support">Support project</span>
+      <button class="modal-close" id="support-close">&#10005;</button>
+    </div>
+    <div class="modal-body support-body">
+      <div class="support-heart">&#9829;</div>
+      <p data-text="support.text">HackRetraction is free and open source. If you find it useful, consider supporting the development.</p>
+      <div id="donate-list" class="donate-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка помощи -->
+<div id="help-modal" class="modal-overlay hidden">
+  <div class="modal help">
+    <div class="modal-head">
+      <span data-text="btn.help">Help</span>
+      <button class="modal-close" id="help-close">&#10005;</button>
+    </div>
+    <div class="modal-body help-body">
+      <div id="help-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>/*SCRIPT*/</script>
+</body>
+</html>

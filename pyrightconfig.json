@@ -1,0 +1,8 @@
+{
+  "include": ["hackretraction"],
+  "exclude": ["**/node_modules", "**/__pycache__"],
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "reportMissingTypeStubs": false,
+  "extraPaths": ["stubs"]
+}

@@ -1,0 +1,727 @@
+/* HackRetraction UI — темы, красный акцент, тултипы, превью. */
+
+:root {
+  --accent: #d9534f;
+  --accent-hover: #c9302c;
+  --accent-soft: rgba(217, 83, 79, 0.16);
+  --radius: 6px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+
+/* --- Темы --- */
+body[data-theme="auto"] {
+  --bg: var(--orca-bg, #1e1e1e);
+  --fg: var(--orca-fg, #e8e8e8);
+  --panel: var(--orca-panel-bg, #262626);
+  --panel-2: var(--orca-panel-bg, #2d2d2d);
+  --border: var(--orca-border, #3a3a3a);
+  --muted: var(--orca-muted, #9a9a9a);
+  --input-bg: var(--orca-input-bg, #1a1a1a);
+}
+body[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --fg: #f0f0f0;
+  --panel: #141414;
+  --panel-2: #1c1c1c;
+  --border: #2a2a2a;
+  --muted: #8f8f8f;
+  --input-bg: #101010;
+}
+body[data-theme="light"] {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --panel: #f6f6f6;
+  --panel-2: #efefef;
+  --border: #e0e0e0;
+  --muted: #6f6f6f;
+  --input-bg: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+/* --- Каркас --- */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+.brand-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.brand-name { color: var(--fg); }
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  justify-content: center;
+}
+
+.btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.93em;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { background: var(--accent-hover); }
+.btn.icon {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 1.07em;
+  line-height: 1;
+}
+/* Кнопка помощи: красная, заметная. */
+.btn.help {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1em;
+  line-height: 1;
+  padding: 5px 11px;
+}
+.btn.help:hover { background: var(--accent-hover); color: #fff; }
+/* Кнопка поддержки: красная с белым сердечком (как в FlowSlice AI). */
+.btn.support {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 1.07em;
+  line-height: 1;
+  padding: 5px 10px;
+}
+.btn.support:hover { background: var(--accent-hover); color: #fff; }
+
+/* --- Выпадающее меню «Сгенерировать GCODE» --- */
+.gen-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 60;
+  min-width: 180px;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dropdown.hidden { display: none; }
+.dropdown-item {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.dropdown-item:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* --- Раскладка --- */
+.layout {
+  display: flex;
+  flex: 1;
+  gap: 0;
+  min-height: 0;
+}
+.panel {
+  overflow: auto;
+  background: var(--bg);
+}
+.panel.params {
+  width: 430px;
+  min-width: 380px;
+  border-right: 1px solid var(--border);
+  padding: 10px 14px;
+}
+.panel.preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  min-width: 0;
+}
+
+/* --- Поля параметров --- */
+.sec {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  user-select: none;
+}
+.sec-head .chevron {
+  font-size: 0.72em;
+  transition: transform 0.15s;
+  color: var(--muted);
+}
+.sec.collapsed .chevron { transform: rotate(-90deg); }
+.sec-body { padding: 6px 10px; }
+.sec.collapsed .sec-body { display: none; }
+
+/* Ровная сетка: reset | label | вопросик | input. Кнопка сброса к рекомендуемому
+   — первой в строке (при display:none схлопывается, колонки не съезжают). */
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.field label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9em;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.input-wrap {
+  flex: 0 0 110px;
+  min-width: 0;
+  margin-right: 4px;
+  position: relative;
+}
+.input-wrap input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.9em;
+  font-family: var(--font-mono);
+}
+/* WebKit: нативные стрелки прижаты к правому краю с небольшим отступом. */
+.input-wrap input[type="number"]::-webkit-inner-spin-button,
+.input-wrap input[type="number"]::-webkit-outer-spin-button {
+  margin-right: 2px;
+  opacity: 1;
+}
+/* Firefox: нативные стрелки не стилизуются — скрываем их (accept-вариант),
+   поле остаётся рабочим (ввод с клавиатуры, стрелки вверх/вниз). */
+@-moz-document url-prefix() {
+  .input-wrap input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+/* Стрелки спиннера в цвет темы (тёмная/светлая). */
+body[data-theme="dark"] .input-wrap input[type="number"] { color-scheme: dark; }
+body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light; }
+/* Заблокированное поле шага (другой инкремент уже задан). */
+.input-wrap input[type="number"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Поле с ошибкой валидации: красная рамка, подсветка и акцентный лейбл. */
+.field.field-error label { color: var(--accent); }
+.field.field-error .input-wrap input {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
+  background: rgba(217, 83, 79, 0.08);
+}
+/* Fallback: класс на самом input (если .field-контейнер недоступен). */
+.input-wrap input.field-error {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
+  background: rgba(217, 83, 79, 0.08);
+}
+/* Единица измерения — справа от поля ввода (вне input, соседний элемент. */
+.unit {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.72em;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Заблокированное поле шага тройки — курсор «нельзя». */
+.input-wrap.locked { cursor: not-allowed; }
+/* Кнопка сброса числового поля к рекомендуемому значению (⟳).
+   Видна только когда текущее значение отличается от рекомендуемого. */
+.btn-reset-param {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.95em;
+  line-height: 1;
+}
+.btn-reset-param.visible { display: inline-flex; }
+.btn-reset-param:hover { border-color: var(--accent); color: var(--accent); }
+.field textarea {
+  flex: 0 0 100%;
+}
+/* Поля стартового/конечного gcode: высота в 3 раза больше обычной textarea. */
+.field textarea.gcode-field {
+  min-height: 168px;
+}
+/* Ряд кнопок у gcode-полей: «Рекомендованный», «Подтянуть значение», ⟳. */
+.gcode-btns {
+  flex: 0 0 100%;
+  display: flex;
+  gap: 6px;
+}
+.gcode-btns .btn {
+  padding: 2px 10px;
+  font-size: 0.82em;
+}
+
+/* --- Тултипы (вопросик) --- */
+.tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  font-size: 0.72em;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+}
+/* Пустой «вопросик» (нет подсказки) — невидим, но колонку сетки занимает,
+   чтобы поля оставались выровненными. */
+.tip:empty { visibility: hidden; }
+/* Вопросик заблокированного поля шага — приглушённый. */
+.tip.locked {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+/* --- Превью: одно окно, side слева + top справа --- */
+.preview-panel {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+}
+.preview-block {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  min-width: 0;
+  overflow: hidden;
+}
+.preview-block.side { flex: 0 0 42%; }
+.preview-block.top { flex: 1; }
+.preview-title {
+  padding: 5px 10px;
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.preview-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 6px;
+}
+.preview-wrap svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* --- Превью: вид сверху (квадрат + точки дистанции по периметру) --- */
+.topview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.topview-square-wrap {
+  position: relative;
+  /* Размер квадрата задаёт JS (fitTopView): контейнер-сцена вписывается
+     и по ширине, и по высоте, поэтому max-width/max-height не нужны. */
+  width: calc(100% - 80px);
+  aspect-ratio: 1;
+}
+.topview-square {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  background: var(--accent-soft);
+}
+.topview-dot {
+  position: absolute;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+.topview-label {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  color: var(--accent);
+  white-space: nowrap;
+  z-index: 3;
+}
+/* Длинные значения (больше 4 знаков) — мельче, чтобы не сливались. */
+.topview-label.small { font-size: 0.65em; }
+/* Подписи: сверху — над квадратом, снизу — под ним, по бокам — слева/справа.
+   Отступы в em — масштабируются вместе со шрифтом (fitTopView). */
+.topview-label[data-pos="bottom"] { transform: translate(-50%, 0); margin-top: 0.6em; }
+.topview-label[data-pos="top"] { transform: translate(-50%, -100%); margin-top: -0.6em; }
+.topview-label[data-pos="left"] { transform: translate(-100%, -50%); margin-left: -0.6em; }
+.topview-label[data-pos="right"] { transform: translate(0, -50%); margin-left: 0.6em; }
+/* Надпись «перед» — под квадратом, по ширине самого вида: буквы
+   распределяются по всей ширине (как бренд на передней кромке стола). */
+.topview-front {
+  margin-top: 2em;
+  width: calc(100% - 80px);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.79em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* --- Превью: вид сбоку (монолитная башня ячеек, column-reverse) --- */
+.tower {
+  display: flex;
+  flex-direction: column-reverse;
+  /* Блоки ровно по левому краю; колонна целиком центрируется контейнером. */
+  align-items: flex-start;
+  width: fit-content;
+  max-height: 100%;
+}
+.tower-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  flex-shrink: 0;
+}
+/* Монолитная ячейка: сплошная заливка, общая рамка колонны.
+   Ширина в em — масштабируется вместе со шрифтом (fitSideView). */
+.tower-block {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.8em;
+  height: 100%;
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  border-top: 1px solid var(--accent);
+  background: rgba(217, 83, 79, 0.28);
+}
+.tower-block:first-child { border-bottom: 1px solid var(--accent); }
+/* Точка на стыке ячеек — со стороны инкрементного параметра (справа). */
+.tower-dot {
+  position: absolute;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background: var(--accent);
+  right: -0.35em;
+  top: -0.3em;
+  z-index: 2;
+}
+.tower-labels {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tower-labels .lbl-speed { color: var(--accent); }
+.tower-labels .lbl-fan { color: #4a9eff; }
+.tower-labels .lbl-temp { color: #ff9f3d; }
+.tower-labels .lbl-sep { color: var(--muted); }
+
+/* --- Тосты (вместо статусбара) --- */
+#toast-container {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 340px;
+  pointer-events: none;
+}
+.toast {
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-size: 0.86em;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.25s ease-out;
+}
+.toast.success { border-left-color: #3fb950; }
+.toast.error { border-left-color: var(--accent); background: rgba(217, 83, 79, 0.12); }
+.toast.info { border-left-color: #4a9eff; }
+.toast.out { opacity: 0; transform: translateX(20px); transition: opacity 0.3s, transform 0.3s; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* --- Модалки --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  width: 420px;
+  max-width: 94%;
+  max-height: 90%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+.modal.wide { width: 640px; }
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.modal-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.15em;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--accent); }
+.modal-body { padding: 14px; overflow: auto; }
+.modal-body .field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.modal-body .field span { font-size: 0.93em; }
+.modal-body select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.93em;
+}
+.modal-body input[type="range"] {
+  width: 180px;
+  accent-color: var(--accent);
+}
+.font-size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.font-size-val {
+  min-width: 34px;
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+/* --- Поддержка --- */
+.support-body { text-align: center; }
+.support-heart {
+  font-size: 40px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.support-body p {
+  font-size: 0.93em;
+  color: var(--fg);
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+.donate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.donate-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.donate-card .d-title {
+  font-weight: 600;
+  font-size: 0.93em;
+  min-width: 110px;
+}
+.donate-card .d-value {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.donate-card .d-actions { display: flex; gap: 6px; }
+.donate-card .btn { padding: 3px 9px; font-size: 0.86em; }
+
+/* --- Помощь --- */
+.help-body { line-height: 1.5; }
+.help-body h3 {
+  color: var(--accent);
+  font-size: 0.96em;
+  margin: 14px 0 4px;
+}
+.help-body h3:first-child { margin-top: 0; }
+.help-body p { margin: 4px 0; }
+.help-body ol { margin: 4px 0 4px 18px; padding: 0; }
+.help-body ul { margin: 4px 0 4px 18px; padding: 0; }
+.help-body li { margin: 2px 0; }
+.help-source {
+  margin-top: 12px;
+  font-size: 0.82em;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* --- Скроллбары --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-track { background: transparent; }
