@@ -50,9 +50,8 @@ After subscribing, the plugin appears in the plugin list in OrcaSlicer (Plugins 
 ## Usage
 
 1. Open the Plugins dialog: **File → Plugins**.
-2. Tick the checkbox to the left of **HackRetraction** to activate it.
-3. Expand the plugin by clicking the arrow in its row.
-4. Click the launch button on the right — the generator window opens.
+2. Tick the checkbox to the left of **HackRetraction** — the plugin tab appears on the main screen of OrcaSlicer.
+3. Once the printer is calibrated, you can hide the plugin: open **File → Plugins** again and untick the checkbox.
 
 ### How to run the calibration
 

@@ -74,6 +74,10 @@ I18N_PY: dict[str, dict[str, str]] = {
         "preview.side": "Side view — speed / fan / temp",
         "preview.test": "Test",
         "preview.layer": "Layer",
+        # Единицы измерения (вид сбоку)
+        "unit.mm_s": "mm/s",
+        "unit.percent": "%",
+        "unit.celsius": "°C",
         # Поддержка
         "support.text": "HackRetraction is free and open source. If you find it useful, consider supporting the development.",
         "support.open": "Open support page",
@@ -208,6 +212,10 @@ I18N_PY: dict[str, dict[str, str]] = {
         "preview.side": "Сбоку — скорость / обдув / температура",
         "preview.test": "Тест",
         "preview.layer": "Слой",
+        # Единицы измерения (вид сбоку)
+        "unit.mm_s": "мм/с",
+        "unit.percent": "%",
+        "unit.celsius": "°C",
         "support.text": "HackRetraction — бесплатный и открытый проект. Если он вам полезен, поддержите разработку.",
         "support.open": "Открыть страницу поддержки",
         "donate.hint": "Выберите способ и скопируйте адрес в кошелёк или платёжное приложение.",
@@ -339,6 +347,10 @@ I18N_PY: dict[str, dict[str, str]] = {
         "preview.side": "Sa strane — brzina / vent / temperatura",
         "preview.test": "Test",
         "preview.layer": "Sloj",
+        # Единицы измерения (вид сбоку)
+        "unit.mm_s": "mm/s",
+        "unit.percent": "%",
+        "unit.celsius": "°C",
         "support.text": "HackRetraction je besplatan i otvoren projekat. Ako vam je koristan, podržite razvoj.",
         "support.open": "Otvori stranicu podrške",
         "donate.hint": "Izaberite metod i kopirajte adresu u novčanik ili aplikaciju za plaćanje.",

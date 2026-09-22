@@ -485,13 +485,13 @@ function renderSide(p) {
     h += "</div>";
     h += '<div class="tower-labels">';
     if (showSpeed) {
-      h += '<span class="lbl lbl-speed">' + fmtNum(srs + irs * i) + " мм/с</span>";
+      h += '<span class="lbl lbl-speed">' + fmtNum(srs + irs * i) + " " + text("unit.mm_s") + "</span>";
     }
     if (showFan) {
-      h += '<span class="lbl lbl-fan">' + fmtNum(fs + fsi * i) + " %</span>";
+      h += '<span class="lbl lbl-fan">' + fmtNum(fs + fsi * i) + " " + text("unit.percent") + "</span>";
     }
     if (showTemp) {
-      h += '<span class="lbl lbl-temp">' + fmtNum(tsh + tih * i) + " °C</span>";
+      h += '<span class="lbl lbl-temp">' + fmtNum(tsh + tih * i) + " " + text("unit.celsius") + "</span>";
     }
     h += "</div></div>";
   }
