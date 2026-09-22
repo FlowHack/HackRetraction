@@ -62,7 +62,7 @@ function buildForm(ui, params) {
     for (var k = 0; k < keys.length; k++) {
       var key = keys[k];
       var label = ui.labels["p." + key] || key;
-      var tip = ui.tips["t." + key] || "";
+      var tipText = ui.tips["t." + key] || "";
       var unit = ui.units[key] || "";
       var type = ui.types[key] || "number";
       /* None (не подтянуто) → пустое поле, а не "null". */
@@ -74,8 +74,8 @@ function buildForm(ui, params) {
       html += '<label title="' + esc(label) + '">' + esc(label) + "</label>";
       /* «Вопросик» рендерится всегда (занимает колонку сетки), но пустой data-tip
          тултип не показывает — так поля выровнены по колонкам. */
-      html += '<span class="tip" title="' + esc(tip) + '">' +
-        (tip ? "?" : "") + "</span>";
+      html += '<span class="tip" title="' + esc(tipText) + '">' +
+        (tipText ? "?" : "") + "</span>";
       if (type === "textarea") {
         /* Полям стартового/конечного gcode — увеличенная высота (см. .gcode-field). */
         var taClass = (key === "startGcode" || key === "endGcode") ? ' class="gcode-field"' : "";
