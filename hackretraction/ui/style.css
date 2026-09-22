@@ -318,7 +318,7 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 /* Единица измерения — справа от поля ввода (вне input, соседний элемент. */
 .unit {
   position: absolute;
-  right: 22px;
+  right: 28px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.72em;
