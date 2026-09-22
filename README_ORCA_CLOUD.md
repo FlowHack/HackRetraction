@@ -1,6 +1,6 @@
 HackRetraction is an OrcaSlicer plugin that generates a smart retraction calibration tower: retraction distance grows around the cube perimeter, while speed, temperature or fan settings change block by block in height.
 
-The test is built from blocks: each new block or perimeter dot uses slightly different values, so you can find the perfect balance between stringing and underextrusion.
+The test is built from blocks: each new block or perimeter dot uses slightly different values, so you can find the perfect balance between stringing and underextrusion. Recommended parameters for the selected profile are calculated automatically, so you can start the test right away.
 
 ## ✨ Features
 
@@ -11,6 +11,10 @@ Builds a full calibration cube: 15 tests per side with increasing retraction dis
 ### ⚙️ Profile integration
 
 One click pulls nozzle diameter, bed size, layer height, flow ratio, print and travel speeds, temperatures and the printer's start/end G-code from the active preset. Extruder type (bowden/direct) is detected to suggest starting values.
+
+### 🧮 Recommended parameters
+
+Optimal values for the selected profile are calculated automatically and offered by default — you can generate the tower right away without manual tuning.
 
 ### 👁️ Live visual preview
 
@@ -42,8 +46,7 @@ Theme (auto/dark/light), font size and family, interface language (English, Russ
 
 ## 📦 Installation
 
-Subscribe to the plugin on its OrcaCloud page:
-[https://cloud.orcaslicer.com/p/XXXXXXXX](https://cloud.orcaslicer.com/p/XXXXXXXX)
+Subscribe to the plugin on this page/
 
 After subscribing, the plugin appears in the plugin list in OrcaSlicer (Plugins dialog) and is ready to use.
 
