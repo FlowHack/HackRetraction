@@ -476,9 +476,9 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 }
 .topview-square-wrap {
   position: relative;
+  /* Размер квадрата задаёт JS (fitTopView): контейнер-сцена вписывается
+     и по ширине, и по высоте, поэтому max-width/max-height не нужны. */
   width: calc(100% - 80px);
-  max-width: 230px;
-  max-height: calc(100% - 40px);
   aspect-ratio: 1;
 }
 .topview-square {
@@ -490,8 +490,8 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 }
 .topview-dot {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 0.7em;
+  height: 0.7em;
   border-radius: 50%;
   background: var(--accent);
   transform: translate(-50%, -50%);
@@ -507,19 +507,22 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 }
 /* Длинные значения (больше 4 знаков) — мельче, чтобы не сливались. */
 .topview-label.small { font-size: 0.65em; }
-/* Подписи: сверху — над квадратом, снизу — под ним, по бокам — слева/справа. */
-.topview-label[data-pos="bottom"] { transform: translate(-50%, 0); margin-top: 9px; }
-.topview-label[data-pos="top"] { transform: translate(-50%, -100%); margin-top: -9px; }
-.topview-label[data-pos="left"] { transform: translate(-100%, -50%); margin-left: -9px; }
-.topview-label[data-pos="right"] { transform: translate(0, -50%); margin-left: 9px; }
-/* Надпись «перед» — с запасом под нижние подписи, чтобы не налезала. */
+/* Подписи: сверху — над квадратом, снизу — под ним, по бокам — слева/справа.
+   Отступы в em — масштабируются вместе со шрифтом (fitTopView). */
+.topview-label[data-pos="bottom"] { transform: translate(-50%, 0); margin-top: 0.6em; }
+.topview-label[data-pos="top"] { transform: translate(-50%, -100%); margin-top: -0.6em; }
+.topview-label[data-pos="left"] { transform: translate(-100%, -50%); margin-left: -0.6em; }
+.topview-label[data-pos="right"] { transform: translate(0, -50%); margin-left: 0.6em; }
+/* Надпись «перед» — под квадратом, по ширине самого вида: буквы
+   распределяются по всей ширине (как бренд на передней кромке стола). */
 .topview-front {
-  margin-top: 30px;
+  margin-top: 2em;
+  width: calc(100% - 80px);
+  display: flex;
+  justify-content: space-between;
   font-family: var(--font-mono);
   font-size: 0.79em;
-  letter-spacing: 1.5px;
   color: var(--muted);
-  text-align: center;
   white-space: nowrap;
 }
 
@@ -540,11 +543,12 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   width: auto;
   flex-shrink: 0;
 }
-/* Монолитная ячейка: сплошная заливка, общая рамка колонны. */
+/* Монолитная ячейка: сплошная заливка, общая рамка колонны.
+   Ширина в em — масштабируется вместе со шрифтом (fitSideView). */
 .tower-block {
   position: relative;
   flex: 0 0 auto;
-  width: 40px;
+  width: 2.8em;
   height: 100%;
   border-left: 1px solid var(--accent);
   border-right: 1px solid var(--accent);
@@ -555,12 +559,12 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 /* Точка на стыке ячеек — со стороны инкрементного параметра (справа). */
 .tower-dot {
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 0.6em;
+  height: 0.6em;
   border-radius: 50%;
   background: var(--accent);
-  right: -5px;
-  top: -4px;
+  right: -0.35em;
+  top: -0.3em;
   z-index: 2;
 }
 .tower-labels {

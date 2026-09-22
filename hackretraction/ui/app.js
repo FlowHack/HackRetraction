@@ -380,11 +380,54 @@ function hideTip() {
 }
 
 /* --- Превью --- */
+var lastPreviewParams = {};
+
 function renderPreview(params) {
+  lastPreviewParams = params || {};
   var side = document.getElementById("preview-side");
   var top = document.getElementById("preview-top");
   if (side) side.innerHTML = renderSide(params);
   if (top) top.innerHTML = renderTop(params);
+  fitPreviews();
+}
+
+/* --- Масштабирование превью под размер контейнера --- */
+var sideScale = 1;
+
+function fitPreviews() {
+  fitTopView();
+  fitSideView();
+}
+
+/* Вид сверху: квадрат вписывается в контейнер и по ширине, и по высоте
+   (пропорции сохраняются); базовый шрифт масштабируется вместе с ним —
+   подписи заданы в em и тянутся за шрифтом. */
+function fitTopView() {
+  var wrap = document.querySelector(".preview-block.top .preview-wrap");
+  var stage = document.getElementById("preview-top");
+  if (!wrap || !stage) return;
+  var r = wrap.getBoundingClientRect();
+  var size = Math.max(140, Math.min(320, r.width - 16, r.height - 16));
+  stage.style.width = size + "px";
+  stage.style.height = size + "px";
+  stage.style.fontSize = Math.round(size * 0.045) + "px";
+}
+
+/* Вид сбоку: масштабируется по высоте контейнера (текст и блоки в em). */
+function fitSideView() {
+  var wrap = document.querySelector(".preview-block.side .preview-wrap");
+  var tower = document.getElementById("preview-side");
+  if (!wrap || !tower) return;
+  var r = wrap.getBoundingClientRect();
+  var availH = Math.max(40, r.height - 12);
+  var nt = Math.max(1, Math.round(num(lastPreviewParams.NumTests, 1)));
+  var lt = Math.max(1, num(lastPreviewParams.layersTest, 1));
+  var naturalH = nt * Math.max(6, Math.round(lt * 1.2));
+  var k = Math.min(1.5, Math.max(0.3, availH / naturalH));
+  if (Math.abs(k - sideScale) < 0.01) return;
+  sideScale = k;
+  tower.style.fontSize = Math.round(14 * k) + "px";
+  tower.innerHTML = renderSide(lastPreviewParams);
 }
 
 function num(v, d) {
@@ -436,8 +479,14 @@ function renderTop(p) {
     h += dot(100, (m + 0.5) * 25, val(7 - m), "right");
   }
   h += "</div>";
-  /* Надпись «перед» строго под нижней гранью квадрата */
-  h += '<div class="topview-front">HACKRETRACTION</div>';
+  /* Надпись «перед» под квадратом, по ширине самого вида: буквы
+     распределяются по всей ширине (как бренд на передней кромке стола). */
+  var front = "HACKRETRACTION";
+  var letters = "";
+  for (var i = 0; i < front.length; i++) {
+    letters += "<span>" + front[i] + "</span>";
+  }
+  h += '<div class="topview-front">' + letters + "</div>";
   return h;
 }
 
@@ -459,8 +508,9 @@ function renderSide(p) {
   var showTemp = tih !== 0;
   var hasStep = showSpeed || showFan || showTemp;
 
-  /* Высота блока пропорциональна слоям на тест (1.2px на слой). */
-  var blockH = Math.max(6, Math.round(lt * 1.2));
+  /* Высота блока пропорциональна слоям на тест (1.2px на слой);
+     sideScale — масштаб по высоте контейнера (см. fitSideView). */
+  var blockH = Math.max(6, Math.round(lt * 1.2 * sideScale));
 
   var h = '<div class="tower">';
   for (var i = 0; i < nt; i++) {
@@ -1015,6 +1065,13 @@ function init() {
   bindModals();
   bindSettingsLive();
   post({ type: "get_state" });
+  /* Масштабирование превью при изменении размеров окна (debounce). */
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(fitPreviews, 80);
+  });
+  fitPreviews();
 }
 
 if (document.readyState === "loading") {
