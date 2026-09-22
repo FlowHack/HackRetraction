@@ -1,6 +1,6 @@
-HackRetraction is an OrcaSlicer plugin that generates a smart retraction calibration tower: retraction distance grows around the cube perimeter, while speed, temperature or fan settings change block by block in height.
+HackRetraction is an OrcaSlicer plugin that generates a smart retraction calibration tower with recommended parameters calculated automatically for your profile.
 
-The test is built from blocks: each new block or perimeter dot uses slightly different values, so you can find the perfect balance between stringing and underextrusion. Recommended parameters for the selected profile are calculated automatically, so you can start the test right away.
+The test is built from blocks: each new block or perimeter dot uses slightly different values, so you can find the perfect balance between stringing and underextrusion.
 
 ## ✨ Features
 
