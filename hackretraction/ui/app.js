@@ -338,23 +338,21 @@ function recalcDefaultsIfUnmodified(params) {
 
 /* --- Тултипы через JS (fixed, не обрезаются панелью) --- */
 function bindTips() {
-  /* Делегирование: data-tip есть у «вопросиков», кнопок тулбара, кнопок
-     полей и заблокированных .input-wrap (тройка шагов). Один обработчик
-     на документ — работает и для элементов, добавленных позже. */
-  document.addEventListener("mouseover", function (e) {
-    var el = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
-    if (!el) return;
-    var rel = e.relatedTarget;
-    if (rel && rel.closest && rel.closest("[data-tip]") === el) return;
-    showTipFor(el);
-  });
-  document.addEventListener("mouseout", function (e) {
-    var el = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
-    if (!el) return;
-    var rel = e.relatedTarget;
-    if (rel && rel.closest && rel.closest("[data-tip]") === el) return;
-    hideTip();
-  });
+  /* Привязка per-element (mouseenter/mouseleave + focus/blur): надёжно
+     работает в WebView Orca. Вызывается в init (кнопки тулбара) и в
+     buildForm (поля формы). .input-wrap привязываем всегда — data-tip
+     появляется у заблокированных полей тройки шагов позже (applyStepLock),
+     а showTipFor читает data-tip в момент наведения. */
+  var els = document.querySelectorAll("[data-tip], .input-wrap");
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    if (el.__tipBound) continue;
+    el.__tipBound = true;
+    el.addEventListener("mouseenter", function () { showTipFor(this); });
+    el.addEventListener("mouseleave", hideTip);
+    el.addEventListener("focus", function () { showTipFor(this); });
+    el.addEventListener("blur", hideTip);
+  }
 }
 
 function showTipFor(tip) {
