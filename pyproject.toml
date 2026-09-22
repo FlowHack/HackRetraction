@@ -29,3 +29,5 @@ packages = ["hackretraction", "hackretraction.engine", "hackretraction.ui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Корень проекта в sys.path: CI запускает pytest без установки пакета.
+pythonpath = ["."]
