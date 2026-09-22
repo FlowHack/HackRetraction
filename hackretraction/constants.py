@@ -40,6 +40,7 @@ DEFAULT_PARAMS: dict[str, float | int | str | None] = {
 # пресета Orca (fallback-цепочка: первый найденный ключ побеждает).
 PRESET_KEYS: dict[str, tuple[str, ...]] = {
     "nozzleDiameter": ("nozzle_diameter",),
+    "filamentDiameter": ("filament_diameter",),
     "dimensionX": ("printable_width",),
     "dimensionY": ("printable_depth",),
     "layerHeight": ("layer_height",),
@@ -62,6 +63,7 @@ KEY_SECTIONS: dict[str, str] = {
     "printer_extruder_id": "printers",
     "printer_extruder_variant": "printers",
     "filament_flow_ratio": "filaments",
+    "filament_diameter": "filaments",
     "nozzle_temperature": "filaments",
     "hot_plate_temp": "filaments",
     "bed_temperature": "filaments",
