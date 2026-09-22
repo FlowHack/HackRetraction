@@ -203,8 +203,8 @@ body {
   background: var(--bg);
 }
 .panel.params {
-  width: 360px;
-  min-width: 320px;
+  width: 430px;
+  min-width: 380px;
   border-right: 1px solid var(--border);
   padding: 10px 14px;
 }
@@ -245,11 +245,11 @@ body {
 .sec-body { padding: 6px 10px; }
 .sec.collapsed .sec-body { display: none; }
 
-/* Ровная сетка: label | input | reset — единицы внутри поля (суффикс).
-   Третья колонка — кнопка сброса к рекомендуемому (при display:none схлопывается). */
+/* Ровная сетка: reset | label | вопросик | input. Кнопка сброса к рекомендуемому
+   — первой в строке (при display:none схлопывается, колонки не съезжают). */
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
@@ -268,7 +268,7 @@ body {
   align-items: center;
 }
 .input-wrap input[type="number"] {
-  width: 84px;
+  width: 132px;
   padding: 3px 6px;
   padding-right: 20px;
   border: 1px solid var(--border);
@@ -335,7 +335,7 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: transparent;
-  color: var(--muted);
+  color: var(--accent);
   cursor: pointer;
   font-size: 0.95em;
   line-height: 1;
@@ -370,13 +370,6 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   padding: 2px 10px;
   font-size: 0.82em;
 }
-/* ⟳ у gcode-полей скрыт, пока поле равно рекомендованному gcode. */
-.gcode-btns .btn-reset-param {
-  display: none;
-}
-.gcode-btns .btn-reset-param.visible {
-  display: inline-flex;
-}
 
 /* --- Тултипы (вопросик) --- */
 .tip {
@@ -394,6 +387,9 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   cursor: help;
   flex-shrink: 0;
 }
+/* Пустой «вопросик» (нет подсказки) — невидим, но колонку сетки занимает,
+   чтобы поля оставались выровненными. */
+.tip:empty { visibility: hidden; }
 /* Вопросик заблокированного поля шага — приглушённый. */
 .tip.locked {
   border-color: var(--muted);
@@ -403,7 +399,8 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 .tip-text {
   display: none;
   position: fixed;
-  z-index: 200;
+  z-index: 9999;
+  pointer-events: none;
   width: 260px;
   padding: 9px 11px;
   background: var(--panel-2);

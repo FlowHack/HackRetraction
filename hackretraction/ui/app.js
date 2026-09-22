@@ -68,17 +68,21 @@ function buildForm(ui, params) {
       /* None (не подтянуто) → пустое поле, а не "null". */
       var value = params[key] !== undefined && params[key] !== null ? params[key] : "";
       html += '<div class="field">';
+      /* Кнопка сброса к рекомендуемому значению — первой в строке (видна при отличии). */
+      html += '<button type="button" class="btn-reset-param" data-reset-param="' +
+        key + '" data-tip="t.reset_param">&#10227;</button>';
       html += '<label title="' + esc(label) + '">' + esc(label) + "</label>";
-      if (tip) {
-        html += '<span class="tip" tabindex="0" data-tip="' + esc(tip) + '">?</span>';
-      }
+      /* «Вопросик» рендерится всегда (занимает колонку сетки), но пустой data-tip
+         тултип не показывает — так поля выровнены по колонкам. */
+      var tipAttr = tip ? ' tabindex="0"' : "";
+      html += '<span class="tip"' + tipAttr + ' data-tip="' + esc(tip) + '">' +
+        (tip ? "?" : "") + "</span>";
       if (type === "textarea") {
         /* Полям стартового/конечного gcode — увеличенная высота (см. .gcode-field). */
         var taClass = (key === "startGcode" || key === "endGcode") ? ' class="gcode-field"' : "";
         html += '<textarea' + taClass + ' data-param="' + key + '">' + esc(value) + "</textarea>";
         /* Кнопки для стартового/конечного gcode: «Рекомендованный» (дефолтный
-           рассчитанный gcode), «Подтянуть значение» (из профиля) и ⟳ возврат
-           к рекомендованному (видна при отличии). */
+           рассчитанный gcode) и «Подтянуть значение» (из профиля). */
         if (key === "startGcode" || key === "endGcode") {
           html += '<div class="gcode-btns">';
           html += '<button type="button" class="btn btn-default-gcode" ' +
@@ -87,8 +91,6 @@ function buildForm(ui, params) {
           html += '<button type="button" class="btn btn-pull-gcode" ' +
             'data-pull-gcode="' + key + '" data-tip="t.pull_gcode">' +
             esc(text("btn.pull_gcode")) + "</button>";
-          html += '<button type="button" class="btn-reset-param" data-reset-param="' +
-            key + '" data-tip="t.reset_param">&#10227;</button>';
           html += "</div>";
         }
       } else {
@@ -103,9 +105,6 @@ function buildForm(ui, params) {
           html += '<span class="unit">' + esc(unit) + "</span>";
         }
         html += "</span>";
-        /* Кнопка сброса к рекомендуемому значению (видна при отличии). */
-        html += '<button type="button" class="btn-reset-param" data-reset-param="' +
-          key + '" data-tip="t.reset_param">&#10227;</button>';
       }
       html += "</div>";
     }
@@ -115,7 +114,6 @@ function buildForm(ui, params) {
   bindSections();
   bindLivePreview();
   bindTips();
-  bindStepLockTips();
   bindDefaultGcodeButtons();
   bindPullGcodeButtons();
   applyStepLock(params);
@@ -340,18 +338,26 @@ function recalcDefaultsIfUnmodified(params) {
 
 /* --- Тултипы через JS (fixed, не обрезаются панелью) --- */
 function bindTips() {
-  /* data-tip есть у «вопросиков» и у кнопок тулбара (pull/load). */
-  var tips = document.querySelectorAll("[data-tip]");
-  for (var i = 0; i < tips.length; i++) {
-    tips[i].addEventListener("mouseenter", showTip);
-    tips[i].addEventListener("mouseleave", hideTip);
-    tips[i].addEventListener("focus", showTip);
-    tips[i].addEventListener("blur", hideTip);
-  }
+  /* Делегирование: data-tip есть у «вопросиков», кнопок тулбара, кнопок
+     полей и заблокированных .input-wrap (тройка шагов). Один обработчик
+     на документ — работает и для элементов, добавленных позже. */
+  document.addEventListener("mouseover", function (e) {
+    var el = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
+    if (!el) return;
+    var rel = e.relatedTarget;
+    if (rel && rel.closest && rel.closest("[data-tip]") === el) return;
+    showTipFor(el);
+  });
+  document.addEventListener("mouseout", function (e) {
+    var el = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
+    if (!el) return;
+    var rel = e.relatedTarget;
+    if (rel && rel.closest && rel.closest("[data-tip]") === el) return;
+    hideTip();
+  });
 }
 
-function showTip(e) {
-  var tip = e.currentTarget;
+function showTipFor(tip) {
   var box = document.getElementById("tip-box");
   if (!box) return;
   /* data-tip может содержать ключ перевода (t.*) — резолвим в текст. */
@@ -560,17 +566,6 @@ function tip(key) {
   return key;
 }
 
-/* Тултип при наведении на САМО поле тройки (не только на «вопросике»):
-   объясняет, что заполнено может быть только одно из трёх полей. */
-function bindStepLockTips() {
-  for (var i = 0; i < STEP_KEYS.length; i++) {
-    var input = document.querySelector('[data-param="' + STEP_KEYS[i] + '"]');
-    if (!input) continue;
-    var wrap = input.parentElement; /* .input-wrap */
-    wrap.addEventListener("mouseenter", showTip);
-    wrap.addEventListener("mouseleave", hideTip);
-  }
-}
 
 function applyStepLock(params) {
   var active = null;

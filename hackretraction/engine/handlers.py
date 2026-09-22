@@ -48,18 +48,6 @@ class HandlersMixin(ParamsMixin, ExportMixin):
 
     # --- Состояние ---
 
-    def _fill_gcode_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Заполняет startGcode/endGcode в params резолвнутыми значениями.
-
-        Пустое поле в params означает «использовать подтянутый из профиля
-        или дефолт» — здесь оно заменяется фактическим gcode для UI.
-        """
-        params = dict(params)
-        start, end = self.resolved_start_end(params)
-        params["startGcode"] = start
-        params["endGcode"] = end
-        return params
-
     def _default_gcode(self, params: Dict[str, Any]) -> tuple[str, str]:
         """Дефолтные start/end gcode с подставленными плейсхолдерами.
 
@@ -70,8 +58,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         return start, end
 
     def _on_get_state(self, _message: Dict[str, Any]) -> None:
-        params = self._fill_gcode_params(self.get_params())
+        params = dict(self.get_params())
         start, end = self._default_gcode(params)
+        params["startGcode"] = params.get("startGcode") or start
+        params["endGcode"] = params.get("endGcode") or end
         self._post(
             {
                 "type": "state",
@@ -198,8 +188,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             self._post({"type": "status", "key": "status.pull_fail"})
             return
         self._apply_pull_result(result)
-        params = self._fill_gcode_params(self.get_params())
+        params = dict(self.get_params())
         start, end = self._default_gcode(params)
+        params["startGcode"] = params.get("startGcode") or start
+        params["endGcode"] = params.get("endGcode") or end
         self._post(
             {
                 "type": "pulled",
@@ -225,8 +217,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             self.set_start_end_gcode("", "")
         self.set_params(params)
         self._recommended = self._compute_recommended(result) if result["ok"] else {}
-        params = self._fill_gcode_params(self.get_params())
+        params = dict(self.get_params())
         start, end = self._default_gcode(params)
+        params["startGcode"] = params.get("startGcode") or start
+        params["endGcode"] = params.get("endGcode") or end
         self._post(
             {
                 "type": "reset",
