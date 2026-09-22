@@ -1,4 +1,4 @@
-What's new in HackRetraction 0.1.0:
+Features of HackRetraction 0.1.0:
 
 - Retraction calibration tower: distance grows around the cube perimeter, speed / temperature / fan change block by block in height.
 - Live HTML preview: top view (retraction values around the square) and side view (tower blocks with parameters), updates instantly.
