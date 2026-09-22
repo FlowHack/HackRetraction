@@ -71,6 +71,7 @@ KEY_SECTIONS: dict[str, str] = {
     "outer_wall_speed": "prints",
     "default_print_speed": "prints",
     "travel_speed": "prints",
+    "gcode_flavor": "printers",
 }
 
 # Ключи обдува: speedFan вычисляется как полусумма min/max (см. pull_from_profile).
@@ -148,6 +149,39 @@ DEFAULT_END_GCODE = (
     "M140 S0 ; Выключить стол\n"
     "M84 X Y E ; Отключить моторы кроме оси Z\n"
 )
+
+# Строка загрузки карты стола в дефолтном стартовом gcode — зависит от
+# прошивки принтера (настройка «Тип прошивки»).
+_BED_MESH_LINE = "M420 S1 Z10 ; Загрузка карты стола и установка затухания компенсации на 10 мм\n"
+
+# Замена строки карты стола для каждой прошивки. Пустая строка — удалить.
+FIRMWARE_BED_MESH: dict[str, str] = {
+    "marlin": _BED_MESH_LINE,  # Marlin: оставить как есть
+    "klipper": "BED_MESH_PROFILE LOAD=default\n",
+    "reprapfirmware": "G29 S1\n",
+    "repetier": "",  # Repetier: строку убрать
+}
+
+# Маппинг gcode_flavor из профиля OrcaSlicer на нашу настройку прошивки.
+FIRMWARE_FLAVOR_MAP: dict[str, str] = {
+    "marlin": "marlin",
+    "marlin2": "marlin",
+    "klipper": "klipper",
+    "reprapfirmware": "reprapfirmware",
+    "repetier": "repetier",
+}
+
+
+def default_start_gcode_for(firmware: str) -> str:
+    """Дефолтный стартовый gcode с учётом прошивки (строка карты стола).
+
+    Marlin — строка M420 остаётся как есть; Klipper/RepRapFirmware —
+    заменяется на команду загрузки сетки; Repetier — удаляется.
+    """
+    line = FIRMWARE_BED_MESH.get(firmware, _BED_MESH_LINE)
+    if line == _BED_MESH_LINE:
+        return DEFAULT_START_GCODE
+    return DEFAULT_START_GCODE.replace(_BED_MESH_LINE, line)
 
 # Плейсхолдеры OrcaSlicer, подставляемые генератором из параметров.
 # Ключ — плейсхолдер, значение — callable(params) -> строка.

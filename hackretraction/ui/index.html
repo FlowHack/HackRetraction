@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="toolbar-left">
       <button id="btn-help" class="btn help" title="Help">?</button>
-      <button id="btn-settings" class="btn icon" title="Settings">&#9881;</button>
+      <button id="btn-settings" class="btn icon">&#9881;</button>
       <button id="btn-support" class="btn support" title="Support project">&#9829;</button>
     </div>
     <div class="toolbar">
@@ -98,6 +98,15 @@
           <option value="en">English</option>
           <option value="ru">Русский</option>
           <option value="sr">Srpski</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-text="set.firmware">Firmware type</span>
+        <select id="set-firmware">
+          <option value="klipper" data-text="set.firmware_klipper">Klipper</option>
+          <option value="marlin" data-text="set.firmware_marlin">Marlin</option>
+          <option value="reprapfirmware" data-text="set.firmware_reprapfirmware">RepRapFirmware</option>
+          <option value="repetier" data-text="set.firmware_repetier">Repetier</option>
         </select>
       </label>
     </div>

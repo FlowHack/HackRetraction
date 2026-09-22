@@ -76,11 +76,20 @@ function buildForm(ui, params) {
         /* Полям стартового/конечного gcode — увеличенная высота (см. .gcode-field). */
         var taClass = (key === "startGcode" || key === "endGcode") ? ' class="gcode-field"' : "";
         html += '<textarea' + taClass + ' data-param="' + key + '">' + esc(value) + "</textarea>";
-        /* Кнопка «По умолчанию» для стартового/конечного gcode. */
+        /* Кнопки для стартового/конечного gcode: «Рекомендованный» (дефолтный
+           рассчитанный gcode), «Подтянуть значение» (из профиля) и ⟳ возврат
+           к рекомендованному (видна при отличии). */
         if (key === "startGcode" || key === "endGcode") {
+          html += '<div class="gcode-btns">';
           html += '<button type="button" class="btn btn-default-gcode" ' +
-            'data-default-gcode="' + key + '">' +
+            'data-default-gcode="' + key + '" data-tip="t.default_gcode">' +
             esc(text("btn.default_gcode")) + "</button>";
+          html += '<button type="button" class="btn btn-pull-gcode" ' +
+            'data-pull-gcode="' + key + '">' +
+            esc(text("btn.pull_gcode")) + "</button>";
+          html += '<button type="button" class="btn-reset-param" data-reset-param="' +
+            key + '" data-tip="t.reset_param">&#10263;</button>';
+          html += "</div>";
         }
       } else {
         /* Шаги инкрементальных параметров не могут быть отрицательными. */
@@ -108,6 +117,7 @@ function buildForm(ui, params) {
   bindTips();
   bindStepLockTips();
   bindDefaultGcodeButtons();
+  bindPullGcodeButtons();
   applyStepLock(params);
   bindResetParamButtons();
   updateResetButtons();
@@ -163,20 +173,30 @@ function clearFieldError(key) {
   if (field) field.classList.remove("field-error");
 }
 
-/* --- Кнопки сброса числовых полей к рекомендуемым значениям --- */
+/* --- Кнопки сброса полей к рекомендуемым значениям --- */
 function updateResetButtons() {
   var rec = state.recommended || {};
   var inputs = document.querySelectorAll("[data-param]");
   for (var i = 0; i < inputs.length; i++) {
     var el = inputs[i];
-    if (el.tagName === "TEXTAREA" || el.tagName === "textarea") continue;
     var key = el.getAttribute("data-param");
     /* Кнопка — сосед .input-wrap в .field (label | tip/wrap | button). */
     var field = el.closest ? el.closest(".field") : el.parentElement.parentElement;
     var btn = field ? field.querySelector(".btn-reset-param") : null;
     if (!btn) continue;
-    var rv = rec[key];
-    var show = rv !== undefined && num(el.value, NaN) !== num(rv, NaN);
+    var rv;
+    if (el.tagName === "TEXTAREA" || el.tagName === "textarea") {
+      /* Для gcode-полей рекомендуемое — рассчитанный дефолтный gcode. */
+      rv = key === "startGcode" ? state.defaultStartGcode : state.defaultEndGcode;
+    } else {
+      rv = rec[key];
+    }
+    var show;
+    if (el.tagName === "TEXTAREA" || el.tagName === "textarea") {
+      show = rv !== undefined && rv !== null && String(el.value) !== String(rv);
+    } else {
+      show = rv !== undefined && rv !== null && num(el.value, NaN) !== num(rv, NaN);
+    }
     btn.classList.toggle("visible", show);
   }
 }
@@ -186,9 +206,16 @@ function bindResetParamButtons() {
   for (var i = 0; i < btns.length; i++) {
     btns[i].addEventListener("click", function () {
       var key = this.getAttribute("data-reset-param");
-      var rv = (state.recommended || {})[key];
       var el = document.querySelector('[data-param="' + key + '"]');
-      if (rv === undefined || !el) return;
+      if (!el) return;
+      var rv;
+      if (el.tagName === "TEXTAREA" || el.tagName === "textarea") {
+        /* gcode-поле: возврат к рекомендованному (рассчитанному) gcode. */
+        rv = key === "startGcode" ? state.defaultStartGcode : state.defaultEndGcode;
+      } else {
+        rv = (state.recommended || {})[key];
+      }
+      if (rv === undefined || rv === null) return;
       el.value = rv;
       state.params[key] = rv;
       updateResetButtons();
@@ -253,10 +280,12 @@ function bindLivePreview() {
       applyStepLock(params);
       updateResetButtons();
       renderPreview(params);
-      /* Пересчёт дефолтных gcode при смене размеров стола — только если
-         поле gcode не редактировалось пользователем (равно дефолту). */
+      /* Пересчёт дефолтных gcode при смене зависимых значений (размеры
+         стола, температуры) — только если поле gcode не редактировалось
+         пользователем (равно дефолту). */
       var key = this.getAttribute("data-param");
-      if (key === "dimensionX" || key === "dimensionY") {
+      if (key === "dimensionX" || key === "dimensionY" ||
+          key === "tempBed" || key === "tempStarthotend") {
         recalcDefaultsIfUnmodified(params);
       }
     });
@@ -277,6 +306,20 @@ function bindDefaultGcodeButtons() {
       post({
         type: "default_gcode",
         field: this.getAttribute("data-default-gcode"),
+        params: collectParams()
+      });
+    });
+  }
+}
+
+/* Кнопки «Подтянуть значение» у полей стартового/конечного gcode. */
+function bindPullGcodeButtons() {
+  var buttons = document.querySelectorAll("[data-pull-gcode]");
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener("click", function () {
+      post({
+        type: "pull_gcode",
+        field: this.getAttribute("data-pull-gcode"),
         params: collectParams()
       });
     });
@@ -643,6 +686,12 @@ function onMessage(msg) {
     case "default_gcode_set":
       state.params = msg.params || {};
       setFormValues(state.params);
+      updateResetButtons();
+      break;
+    case "gcode_pulled":
+      state.params = msg.params || {};
+      setFormValues(state.params);
+      updateResetButtons();
       break;
     case "default_gcode_updated":
       /* Обновляем поля, только если они всё ещё равны старым дефолтам. */
@@ -785,6 +834,7 @@ function openSettings() {
   setSelect("set-font", s.font_style || "system");
   setSelect("set-language", s.language || "en");
   setSelect("set-comment-lang", s.comment_lang || "en");
+  setSelect("set-firmware", s.firmware || "marlin");
   modal.classList.remove("hidden");
 }
 
@@ -823,21 +873,25 @@ function collectSettings() {
     font_size: getRange("set-font-size"),
     font_style: getSelect("set-font"),
     language: getSelect("set-language"),
-    comment_lang: getSelect("set-comment-lang")
+    comment_lang: getSelect("set-comment-lang"),
+    firmware: getSelect("set-firmware")
   };
 }
 
 /* Применение настроек в реальном времени по смене значения. */
 function bindSettingsLive() {
-  var ids = ["set-theme", "set-font-size", "set-font", "set-language", "set-comment-lang"];
+  var ids = ["set-theme", "set-font-size", "set-font", "set-language",
+             "set-comment-lang", "set-firmware"];
   for (var i = 0; i < ids.length; i++) {
     var el = document.getElementById(ids[i]);
     if (!el) continue;
     el.addEventListener("change", function () {
-      post({ type: "settings", settings: collectSettings() });
+      /* Текущие значения формы передаём для пересчёта рекомендуемых:
+         поля, не изменённые пользователем, обновятся новыми значениями. */
+      post({ type: "settings", settings: collectSettings(), params: collectParams() });
     });
     el.addEventListener("input", function () {
-      post({ type: "settings", settings: collectSettings() });
+      post({ type: "settings", settings: collectSettings(), params: collectParams() });
     });
   }
   var fs = document.getElementById("set-font-size");

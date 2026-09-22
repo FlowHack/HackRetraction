@@ -93,6 +93,14 @@ class CoreMixin:
     def comment_lang(self) -> str:
         return str(self.config.get("comment_lang", "en"))
 
+    @property
+    def firmware(self) -> str:
+        """Тип прошивки принтера (klipper/marlin/reprapfirmware/repetier).
+
+        Влияет на дефолтный стартовый gcode (строка загрузки карты стола).
+        """
+        return str(self.config.get("firmware", "marlin"))
+
     def _t(self, key: str, **params: object) -> str:
         return get_text(self.lang, key, **params)
 

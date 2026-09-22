@@ -673,3 +673,179 @@ def test_generate_tolerates_empty_step_triple():
     )
     msg = _generate(engine, params)
     assert msg["type"] == "generated"
+
+
+# --- Пункты 11-16: прошивка, кнопки gcode-полей, мгновенное применение ---
+
+
+def test_default_start_gcode_for_firmware():
+    """Пункт 11: строка карты стола зависит от прошивки."""
+    from hackretraction.constants import default_start_gcode_for
+
+    marlin = default_start_gcode_for("marlin")
+    assert "M420 S1 Z10" in marlin
+    klipper = default_start_gcode_for("klipper")
+    assert "BED_MESH_PROFILE LOAD=default" in klipper
+    assert "M420" not in klipper
+    rrf = default_start_gcode_for("reprapfirmware")
+    assert "G29 S1" in rrf
+    assert "M420" not in rrf
+    repetier = default_start_gcode_for("repetier")
+    assert "M420" not in repetier
+    # Неизвестная прошивка — как Marlin (строка остаётся).
+    assert "M420" in default_start_gcode_for("bogus")
+
+
+def test_pull_firmware_from_flavor(monkeypatch):
+    """Пункт 11: gcode_flavor из профиля маппится в нашу прошивку."""
+    params_mod, fake = _fake_orca(
+        {
+            "gcode_flavor": _FakeValue("marlin2"),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    result = engine.pull_from_profile()
+    assert result["ok"] is True
+    assert result["firmware"] == "marlin"
+
+
+def test_auto_pull_sets_firmware_config(monkeypatch):
+    """Пункт 11: при старте прошивка из профиля попадает в конфиг."""
+    params_mod, fake = _fake_orca(
+        {
+            "gcode_flavor": _FakeValue("klipper"),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    assert engine.firmware == "klipper"
+
+
+def test_default_gcode_firmware_aware():
+    """Пункт 12: кнопка «Рекомендованный» учитывает прошивку."""
+    engine = _engine()
+    engine.save_settings({"firmware": "klipper"})
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "default_gcode", "field": "startGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "default_gcode_set"
+    assert "BED_MESH_PROFILE LOAD=default" in msg["gcode"]
+    assert "M420" not in msg["gcode"]
+
+
+def test_settings_reapply_keeps_user_edits(monkeypatch):
+    """Пункт 11: смена настроек пересчитывает рекомендуемые значения,
+    но пользовательские правки полей сохраняются."""
+    params_mod, fake = _fake_orca(
+        {
+            "nozzle_diameter": _FakeValue(0.4),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+            "extruder_type": "Direct Drive",
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()  # auto-pull: dimensionX=325, пресет direct
+    form = engine.get_params()
+    form["tempBed"] = 999.0  # правка пользователя
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message(
+        {"type": "settings", "settings": {"theme": "dark"}, "params": form}
+    )
+    msg = messages[-1]
+    assert msg["type"] == "settings_saved"
+    params = engine.get_params()
+    assert params["tempBed"] == 999.0  # правка сохранена
+    assert params["dimensionX"] == 325.0  # нетронутое поле пересчитано
+    assert params["startRetractiondistance"] == 1.0  # пресет direct
+
+
+def test_settings_firmware_change_updates_default_gcode():
+    """Пункт 11: смена прошивки пересчитывает дефолтный gcode."""
+    engine = _engine()
+    engine.save_settings({"firmware": "marlin"})
+    messages = []
+    engine.set_post_sink(messages.append)
+    # Поле равно старому дефолту (M420) — после смены прошивки резолвнется
+    # в новый дефолт (вне Orca pull не работает, gcode-поле сбрасывается).
+    form = engine.get_params()
+    form["startGcode"] = engine._default_gcode(form)[0]
+    engine.handle_message(
+        {"type": "settings", "settings": {"firmware": "klipper"}, "params": form}
+    )
+    msg = messages[-1]
+    assert msg["type"] == "settings_saved"
+    params = engine.get_params()
+    assert params["startGcode"] == ""
+    start, _ = engine.resolved_start_end(params)
+    assert "BED_MESH_PROFILE LOAD=default" in start
+
+
+def test_pull_gcode_button(monkeypatch):
+    """Пункт 13: «Подтянуть значение» подтягивает gcode из профиля."""
+    params_mod, fake = _fake_orca(
+        {
+            "machine_start_gcode": "M400 ; Очистка буфера\\nM220 S100",
+            "machine_end_gcode": "M84 X Y E\\nM104 S0",
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "pull_gcode", "field": "startGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "gcode_pulled"
+    assert msg["gcode"] == "M400 ; Очистка буфера\nM220 S100"
+    assert msg["params"]["startGcode"] == msg["gcode"]
+
+
+def test_pull_gcode_empty_profile(monkeypatch):
+    """Пункт 13: пустой gcode в профиле → поле очищается."""
+    params_mod, fake = _fake_orca(
+        {
+            "machine_start_gcode": "",
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "pull_gcode", "field": "startGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "gcode_pulled"
+    assert msg["gcode"] == ""
+
+
+def test_pull_gcode_outside_orca_fails():
+    """Пункт 13: вне Orca подтяжка gcode сообщает о неудаче."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "pull_gcode", "field": "startGcode"})
+    msg = messages[-1]
+    assert msg["type"] == "status"
+    assert msg["key"] == "status.pull_fail"
+
+
+def test_ui_gcode_buttons_present():
+    """Пункты 12-13: в UI есть кнопки «Рекомендованный», «Подтянуть значение»
+    и ⟳ возврата; тултип Settings у кнопки настроек убран."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "hackretraction" / "ui"
+    html = (root / "index.html").read_text(encoding="utf-8")
+    js = (root / "app.js").read_text(encoding="utf-8")
+    assert 'id="btn-settings"' in html
+    assert 'title="Settings"' not in html
+    assert "data-pull-gcode" in js
+    assert "data-default-gcode" in js
+    assert "t.default_gcode" in js
+    assert "set-firmware" in html
+    assert "set-firmware" in js

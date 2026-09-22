@@ -6,19 +6,21 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional
 
 from ..constants import (
     DEFAULT_END_GCODE,
-    DEFAULT_START_GCODE,
     END_GCODE_KEY,
     EXTRUDER_ID_KEYS,
     EXTRUDER_PRESETS,
     FAN_SPEED_KEYS,
+    FIRMWARE_FLAVOR_MAP,
     KEY_SECTIONS,
     PRESET_KEYS,
     START_GCODE_KEY,
+    default_start_gcode_for,
 )
 from ..errors import ProfileError
 from ..i18n import I18N_COMMENTS
@@ -188,6 +190,7 @@ class ParamsMixin(CoreMixin):
             "start_gcode": "",
             "end_gcode": "",
             "extruder": "unknown",
+            "firmware": None,
             "ok": False,
         }
         if orca is None:
@@ -272,6 +275,15 @@ class ParamsMixin(CoreMixin):
                         break
                 except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
                     _LOGGER.debug("Нет типа экструдера %s: %s", key, exc)
+
+            # Тип прошивки (gcode_flavor) — для дефолтного стартового gcode.
+            # Значения Orca: marlin, marlin2, klipper, repetier, reprapfirmware.
+            try:
+                flavor = str(_getv("gcode_flavor") or "").lower()
+                result["firmware"] = FIRMWARE_FLAVOR_MAP.get(flavor)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                _LOGGER.debug("Нет gcode_flavor в профиле: %s", exc)
+                result["firmware"] = None
 
             if not result["params"]:
                 _LOGGER.warning("Подтяжка не нашла ни одного параметра в профиле")
@@ -383,6 +395,13 @@ class ParamsMixin(CoreMixin):
         self.set_params(params)
         self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
         self._recommended = self._compute_recommended(result)
+        # Прошивка из профиля — источник истины для дефолтного gcode.
+        # Загружаем конфиг (с дефолтами) перед записью, чтобы не потерять
+        # остальные настройки и не сломать ленивую загрузку.
+        if result.get("firmware"):
+            cfg = dict(self.config)
+            cfg["firmware"] = result["firmware"]
+            self._config = cfg
 
     def _auto_pull(self) -> None:
         """Подтягивает параметры из профиля при старте плагина.
@@ -394,6 +413,14 @@ class ParamsMixin(CoreMixin):
         result = self.pull_from_profile()
         if result["ok"]:
             self._apply_pull_result(result)
+            # Прошивка из профиля сохраняется в конфиг: при следующем запуске
+            # настройка уже предзаполнена (пользователь может её переопределить).
+            if result.get("firmware"):
+                try:
+                    self._plugin.save_config(json.dumps(self._config))
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    # pragma: no cover - вне Orca
+                    _LOGGER.warning("Не удалось сохранить прошивку в конфиг: %s", exc)
 
     def resolved_start_end(self, params: Dict[str, Any]) -> tuple[str, str]:
         """Возвращает (start_gcode, end_gcode) с подставленными плейсхолдерами.
@@ -402,7 +429,11 @@ class ParamsMixin(CoreMixin):
         подтянутый из профиля → дефолт из constants.py. Плейсхолдеры
         OrcaSlicer подставляются из параметров.
         """
-        start = params.get("startGcode") or self._start_gcode or DEFAULT_START_GCODE
+        start = (
+            params.get("startGcode")
+            or self._start_gcode
+            or default_start_gcode_for(self.firmware)
+        )
         end = params.get("endGcode") or self._end_gcode or DEFAULT_END_GCODE
         start = apply_placeholders(start, params)
         end = apply_placeholders(end, params)

@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from ..constants import DEFAULT_END_GCODE, DEFAULT_PARAMS, DEFAULT_START_GCODE
+from ..constants import (
+    DEFAULT_END_GCODE,
+    DEFAULT_PARAMS,
+    EXTRUDER_PRESETS,
+    default_start_gcode_for,
+)
 from ..errors import ExportError, ProfileError
 from ..i18n import I18N_COMMENTS
 from ..logging import _LOGGER
@@ -56,8 +61,11 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         return params
 
     def _default_gcode(self, params: Dict[str, Any]) -> tuple[str, str]:
-        """Дефолтные start/end gcode с подставленными плейсхолдерами."""
-        start = apply_placeholders(DEFAULT_START_GCODE, params)
+        """Дефолтные start/end gcode с подставленными плейсхолдерами.
+
+        Стартовый gcode зависит от прошивки принтера (строка карты стола).
+        """
+        start = apply_placeholders(default_start_gcode_for(self.firmware), params)
         end = apply_placeholders(DEFAULT_END_GCODE, params)
         return start, end
 
@@ -233,12 +241,12 @@ class HandlersMixin(ParamsMixin, ExportMixin):
     # --- G-code по умолчанию ---
 
     def _on_default_gcode(self, message: Dict[str, Any]) -> None:
-        """Кнопка «По умолчанию»: подставляет дефолтный gcode в поле.
+        """Кнопка «Рекомендованный»: подставляет дефолтный gcode в поле.
 
         Входящие params (текущие значения формы из JS) — база для подстановки
         плейсхолдеров; заменяется ТОЛЬКО целевое поле. Соседнее gcode-поле
         заполняется дефолтом, только если оно пустое — пользовательский ввод
-        в нём сохраняется.
+        в нём сохраняется. Дефолтный стартовый gcode зависит от прошивки.
         """
         field = str(message.get("field", ""))
         if field not in ("startGcode", "endGcode"):
@@ -251,13 +259,21 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             # База — состояние движка, поверх — значения формы из JS: так
             # плейсхолдеры не упадут, если какое-то поле формы пустое.
             incoming = {**self.get_params(), **incoming}
-        default = DEFAULT_START_GCODE if field == "startGcode" else DEFAULT_END_GCODE
+        default = (
+            default_start_gcode_for(self.firmware)
+            if field == "startGcode"
+            else DEFAULT_END_GCODE
+        )
         incoming[field] = apply_placeholders(default, incoming)
         # Соседнее gcode-поле: дефолт только если оно пустое/отсутствует,
         # иначе пользовательский ввод сохраняется.
         other = "endGcode" if field == "startGcode" else "startGcode"
         if not incoming.get(other):
-            other_default = DEFAULT_END_GCODE if other == "endGcode" else DEFAULT_START_GCODE
+            other_default = (
+                DEFAULT_END_GCODE
+                if other == "endGcode"
+                else default_start_gcode_for(self.firmware)
+            )
             incoming[other] = apply_placeholders(other_default, incoming)
         self.set_params(incoming)
         self._post(
@@ -305,12 +321,96 @@ class HandlersMixin(ParamsMixin, ExportMixin):
     # --- Настройки ---
 
     def _on_settings(self, message: Dict[str, Any]) -> None:
+        """Сохранение настроек + мгновенное применение.
+
+        После смены настроек пересчитываются рекомендуемые значения и
+        дефолтные gcode; поля, не изменённые пользователем, обновляются.
+        При смене прошивки gcode-поля, равные старому дефолту, сбрасываются —
+        они резолвнутся в новый дефолт (см. _reapply_recommended).
+        """
         settings = message.get("settings", {})
+        incoming = message.get("params")
+        old_firmware = self.firmware
         ok = self.save_settings(settings)
+        # gcode-поля, не тронутые пользователем (равны старому дефолту),
+        # сбрасываем: после смены прошивки они резолвнутся в новый дефолт.
+        if isinstance(incoming, dict) and self.firmware != old_firmware:
+            base = {**self.get_params(), **incoming}
+            old_start = apply_placeholders(default_start_gcode_for(old_firmware), base)
+            old_end = apply_placeholders(DEFAULT_END_GCODE, base)
+            if incoming.get("startGcode") == old_start:
+                incoming["startGcode"] = ""
+            if incoming.get("endGcode") == old_end:
+                incoming["endGcode"] = ""
+        self._reapply_recommended(incoming)
         self._post(
             {
                 "type": "settings_saved",
                 "ok": ok,
                 "settings": self.get_settings(),
+            }
+        )
+
+    def _reapply_recommended(self, incoming: Any) -> None:
+        """Пересчитывает рекомендуемые значения после смены настроек.
+
+        Поля, не изменённые пользователем (равны старому рекомендуемому),
+        обновляются новыми подтянутыми значениями; пользовательские правки
+        сохраняются. Вне Orca — только пересчёт дефолтных gcode.
+        """
+        result = self.pull_from_profile()
+        params: Dict[str, Any] = {}
+        for key in DEFAULT_PARAMS:
+            if isinstance(incoming, dict) and key in incoming:
+                params[key] = incoming[key]
+            else:
+                params[key] = None
+        if result["ok"]:
+            rec = self._recommended
+            for key, value in result["params"].items():
+                if params.get(key) == rec.get(key):
+                    params[key] = value
+            preset = EXTRUDER_PRESETS.get(result["extruder"])
+            if preset:
+                for key, value in preset.items():
+                    if params.get(key) == rec.get(key):
+                        params[key] = value
+            self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+            self._recommended = self._compute_recommended(result)
+        self.set_params(params)
+
+    # --- Подтяжка gcode из профиля в поле ---
+
+    def _on_pull_gcode(self, message: Dict[str, Any]) -> None:
+        """Кнопка «Подтянуть значение»: подтягивает gcode из профиля в поле.
+
+        Если в профиле gcode пустой — поле очищается. Плейсхолдеры
+        подставляются из текущих значений формы.
+        """
+        field = str(message.get("field", ""))
+        if field not in ("startGcode", "endGcode"):
+            _LOGGER.warning("Неизвестное поле gcode: %s", field)
+            return
+        result = self.pull_from_profile()
+        if not result["ok"]:
+            self._post({"type": "status", "key": "status.pull_fail"})
+            return
+        raw = result["start_gcode"] if field == "startGcode" else result["end_gcode"]
+        incoming = message.get("params")
+        base = (
+            {**self.get_params(), **incoming}
+            if isinstance(incoming, dict)
+            else self.get_params()
+        )
+        value = apply_placeholders(raw, base) if raw else ""
+        params = self.get_params()
+        params[field] = value
+        self.set_params(params)
+        self._post(
+            {
+                "type": "gcode_pulled",
+                "field": field,
+                "gcode": value,
+                "params": self.get_params(),
             }
         )
