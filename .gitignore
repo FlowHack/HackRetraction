@@ -238,3 +238,6 @@ __marimo__/
 # Артефакты dev-запуска плагина вне Orca
 /chats.json
 /tab_icon.svg
+
+# Исходники превью (в репозитории не нужны)
+assets/source_preview.png
