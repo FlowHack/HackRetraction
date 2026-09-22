@@ -70,12 +70,11 @@ function buildForm(ui, params) {
       html += '<div class="field">';
       /* Кнопка сброса к рекомендуемому значению — первой в строке (видна при отличии). */
       html += '<button type="button" class="btn-reset-param" data-reset-param="' +
-        key + '" data-tip="t.reset_param">&#10227;</button>';
+        key + '" title="' + esc(tip("t.reset_param")) + '">&#10227;</button>';
       html += '<label title="' + esc(label) + '">' + esc(label) + "</label>";
       /* «Вопросик» рендерится всегда (занимает колонку сетки), но пустой data-tip
          тултип не показывает — так поля выровнены по колонкам. */
-      var tipAttr = tip ? ' tabindex="0"' : "";
-      html += '<span class="tip"' + tipAttr + ' data-tip="' + esc(tip) + '">' +
+      html += '<span class="tip" title="' + esc(tip) + '">' +
         (tip ? "?" : "") + "</span>";
       if (type === "textarea") {
         /* Полям стартового/конечного gcode — увеличенная высота (см. .gcode-field). */
@@ -86,10 +85,10 @@ function buildForm(ui, params) {
         if (key === "startGcode" || key === "endGcode") {
           html += '<div class="gcode-btns">';
           html += '<button type="button" class="btn btn-default-gcode" ' +
-            'data-default-gcode="' + key + '" data-tip="t.default_gcode">' +
+            'data-default-gcode="' + key + '" title="' + esc(tip("t.default_gcode")) + '">' +
             esc(text("btn.default_gcode")) + "</button>";
           html += '<button type="button" class="btn btn-pull-gcode" ' +
-            'data-pull-gcode="' + key + '" data-tip="t.pull_gcode">' +
+            'data-pull-gcode="' + key + '" title="' + esc(tip("t.pull_gcode")) + '">' +
             esc(text("btn.pull_gcode")) + "</button>";
           html += "</div>";
         }
@@ -113,7 +112,6 @@ function buildForm(ui, params) {
   panel.innerHTML = html;
   bindSections();
   bindLivePreview();
-  bindTips();
   bindDefaultGcodeButtons();
   bindPullGcodeButtons();
   applyStepLock(params);
@@ -337,52 +335,6 @@ function recalcDefaultsIfUnmodified(params) {
 }
 
 /* --- Тултипы через JS (fixed, не обрезаются панелью) --- */
-function bindTips() {
-  /* Привязка per-element (mouseenter/mouseleave + focus/blur): надёжно
-     работает в WebView Orca. Вызывается в init (кнопки тулбара) и в
-     buildForm (поля формы). .input-wrap привязываем всегда — data-tip
-     появляется у заблокированных полей тройки шагов позже (applyStepLock),
-     а showTipFor читает data-tip в момент наведения. */
-  var els = document.querySelectorAll("[data-tip], .input-wrap");
-  for (var i = 0; i < els.length; i++) {
-    var el = els[i];
-    if (el.__tipBound) continue;
-    el.__tipBound = true;
-    el.addEventListener("mouseenter", function () { showTipFor(this); });
-    el.addEventListener("mouseleave", hideTip);
-    el.addEventListener("focus", function () { showTipFor(this); });
-    el.addEventListener("blur", hideTip);
-  }
-}
-
-function showTipFor(tip) {
-  var box = document.getElementById("tip-box");
-  if (!box) return;
-  /* data-tip может содержать ключ перевода (t.*) — резолвим в текст. */
-  var key = tip.getAttribute("data-tip") || "";
-  /* Пустой data-tip (незаблокированное поле тройки) — тултип не показываем. */
-  if (!key) return;
-  box.textContent = key.indexOf("t.") === 0 ? tip(key) : key;
-  var r = tip.getBoundingClientRect();
-  var left = r.right + 8;
-  var top = r.top;
-  if (left + 270 > window.innerWidth) {
-    left = r.left - 8 - 260;
-  }
-  if (top + 200 > window.innerHeight) {
-    top = window.innerHeight - 200;
-  }
-  if (top < 4) top = 4;
-  box.style.left = left + "px";
-  box.style.top = top + "px";
-  box.classList.add("visible");
-}
-
-function hideTip() {
-  var box = document.getElementById("tip-box");
-  if (box) box.classList.remove("visible");
-}
-
 /* --- Превью --- */
 var lastPreviewParams = {};
 
@@ -604,10 +556,10 @@ function applyStepLock(params) {
     /* Тултип и визуал на самом поле (.input-wrap) при блокировке. */
     var wrap = input.parentElement; /* .input-wrap */
     if (locked) {
-      wrap.setAttribute("data-tip", tip("t.step_locked"));
+      wrap.setAttribute("title", tip("t.step_locked"));
       wrap.classList.add("locked");
     } else {
-      wrap.removeAttribute("data-tip");
+      wrap.removeAttribute("title");
       wrap.classList.remove("locked");
     }
   }
@@ -1064,7 +1016,12 @@ function init() {
   bindFileInput();
   bindModals();
   bindSettingsLive();
-  bindTips();
+  /* Нативные тултипы (title) для кнопок тулбара — резолвим переводы. */
+  var tt = document.querySelectorAll("[data-title]");
+  for (var i =  0; i < tt.length; i++) {
+    var tk = tt[i].getAttribute("data-title");
+    if (tk) tt[i].title = tip(tk);
+  }
   post({ type: "get_state" });
   /* Масштабирование превью при изменении размеров окна (debounce). */
   var resizeTimer = null;

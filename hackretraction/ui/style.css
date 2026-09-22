@@ -248,29 +248,29 @@ body {
 /* Ровная сетка: reset | label | вопросик | input. Кнопка сброса к рекомендуемому
    — первой в строке (при display:none схлопывается, колонки не съезжают). */
 .field {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto 120px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 4px;
 }
 .field label {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.9em;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 .input-wrap {
-  position: relative;
-  display: block;
-  width: 100%;
+  flex: 0 0 110px;
+  min-width: 0;
 }
 .input-wrap input[type="number"] {
   width: 100%;
+  min-width: 0;
   padding: 3px 6px;
-  padding-right: 46px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
@@ -314,11 +314,8 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   background: rgba(217, 83, 79, 0.08);
 }
 /* Единица измерения — справа от поля ввода (вне input, соседний элемент. */
-.input-wrap .unit {
-  position: absolute;
-  right: 24px;
-  top: 50%;
-  transform: translateY(-50%);
+.unit {
+  flex: 0 0 auto;
   font-size: 0.72em;
   color: var(--muted);
   white-space: nowrap;
@@ -346,16 +343,7 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 .btn-reset-param.visible { display: inline-flex; }
 .btn-reset-param:hover { border-color: var(--accent); color: var(--accent); }
 .field textarea {
-  grid-column: 1 / -1;
-  width: 100%;
-  min-height: 56px;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--input-bg);
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: 0.86em;
+  flex: 0 0 100%;
 }
 /* Поля стартового/конечного gcode: высота в 3 раза больше обычной textarea. */
 .field textarea.gcode-field {
@@ -363,11 +351,9 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 }
 /* Ряд кнопок у gcode-полей: «Рекомендованный», «Подтянуть значение», ⟳. */
 .gcode-btns {
-  grid-column: 1 / -1;
+  flex: 0 0 100%;
   display: flex;
-  align-items: center;
   gap: 6px;
-  margin-top: 2px;
 }
 .gcode-btns .btn {
   padding: 2px 10px;
@@ -398,25 +384,6 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   border-color: var(--muted);
   color: var(--muted);
 }
-/* Тултип позиционируется JS-ом как fixed (не обрезается панелью). */
-.tip-text {
-  display: none;
-  position: fixed;
-  z-index: 9999;
-  pointer-events: none;
-  width: 260px;
-  padding: 9px 11px;
-  background: var(--panel-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  color: var(--fg);
-  font-size: 0.86em;
-  line-height: 1.4;
-  text-align: left;
-  white-space: normal;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-}
-.tip-text.visible { display: block; }
 
 /* --- Превью: одно окно, side слева + top справа --- */
 .preview-panel {
