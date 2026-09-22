@@ -85,10 +85,10 @@ function buildForm(ui, params) {
             'data-default-gcode="' + key + '" data-tip="t.default_gcode">' +
             esc(text("btn.default_gcode")) + "</button>";
           html += '<button type="button" class="btn btn-pull-gcode" ' +
-            'data-pull-gcode="' + key + '">' +
+            'data-pull-gcode="' + key + '" data-tip="t.pull_gcode">' +
             esc(text("btn.pull_gcode")) + "</button>";
           html += '<button type="button" class="btn-reset-param" data-reset-param="' +
-            key + '" data-tip="t.reset_param">&#10263;</button>';
+            key + '" data-tip="t.reset_param">&#10227;</button>';
           html += "</div>";
         }
       } else {
@@ -105,7 +105,7 @@ function buildForm(ui, params) {
         html += "</span>";
         /* Кнопка сброса к рекомендуемому значению (видна при отличии). */
         html += '<button type="button" class="btn-reset-param" data-reset-param="' +
-          key + '" data-tip="t.reset_param">&#10263;</button>';
+          key + '" data-tip="t.reset_param">&#10227;</button>';
       }
       html += "</div>";
     }
@@ -419,11 +419,17 @@ function fitSideView() {
   var tower = document.getElementById("preview-side");
   if (!wrap || !tower) return;
   var r = wrap.getBoundingClientRect();
-  var availH = Math.max(40, r.height - 12);
+  var availH = Math.max(40, r.height - 24);
   var nt = Math.max(1, Math.round(num(lastPreviewParams.NumTests, 1)));
   var lt = Math.max(1, num(lastPreviewParams.layersTest, 1));
   var naturalH = nt * Math.max(6, Math.round(lt * 1.2));
   var k = Math.min(1.5, Math.max(0.3, availH / naturalH));
+  /* Пол блока (6px) масштабируется вместе с k: иначе при малых
+     слоях на тест башня не может сжаться и появляется скролл. */
+  var blockH = Math.max(6 * k, Math.round(lt * 1.2 * k));
+  if (nt * blockH > availH) {
+    k = Math.max(0.3, (availH -  2) / (nt * Math.max(6, lt * 1.2)));
+  }
   if (Math.abs(k - sideScale) < 0.01) return;
   sideScale = k;
   tower.style.fontSize = Math.round(14 * k) + "px";
@@ -510,7 +516,7 @@ function renderSide(p) {
 
   /* Высота блока пропорциональна слоям на тест (1.2px на слой);
      sideScale — масштаб по высоте контейнера (см. fitSideView). */
-  var blockH = Math.max(6, Math.round(lt * 1.2 * sideScale));
+  var blockH = Math.max(6 * sideScale, Math.round(lt * 1.2 * sideScale));
 
   var h = '<div class="tower">';
   for (var i = 0; i < nt; i++) {
@@ -956,7 +962,8 @@ function bindSettingsLive() {
 function closeSettings() {
   var modal = document.getElementById("settings-modal");
   modal.classList.add("hidden");
-  post({ type: "settings", settings: collectSettings() });
+  /* Настройки применяются в реальном времени (bindSettingsLive) — при закрытии
+     ничего не постим, иначе поля обнулятся (reapply без params). */
 }
 
 /* --- Поддержка --- */
@@ -1064,6 +1071,7 @@ function init() {
   bindFileInput();
   bindModals();
   bindSettingsLive();
+  bindTips();
   post({ type: "get_state" });
   /* Масштабирование превью при изменении размеров окна (debounce). */
   var resizeTimer = null;

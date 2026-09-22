@@ -141,11 +141,15 @@ def test_handle_settings():
     engine = _engine()
     messages = []
     engine.set_post_sink(messages.append)
+    engine.set_params({"NumTests": 99, "layerHeight": 0.3})
     engine.handle_message({"type": "settings", "settings": {"theme": "dark", "language": "ru"}})
     msg = messages[-1]
     assert msg["type"] == "settings_saved"
     assert msg["settings"]["theme"] == "dark"
     assert msg["settings"]["language"] == "ru"
+    # Без params (закрытие настроек без изменений) поля НЕ обнуляются.
+    assert engine.get_params()["NumTests"] == 99
+    assert engine.get_params()["layerHeight"] == 0.3
 
 
 def test_handle_pull_outside_orca_fails():

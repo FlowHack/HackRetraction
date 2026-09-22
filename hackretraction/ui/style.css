@@ -313,19 +313,13 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
   background: rgba(217, 83, 79, 0.08);
 }
-/* Единица измерения — суффикс внутри поля, слева от стрелок спиннера. */
+/* Единица измерения — справа от поля ввода (вне input, соседний элемент. */
 .input-wrap .unit {
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 0.72em;
   color: var(--muted);
+  margin-left: 5px;
+  white-space: nowrap;
   pointer-events: none;
-}
-/* Firefox: стрелок нет — суффикс можно прижать к краю. */
-@-moz-document url-prefix() {
-  .input-wrap .unit { right: 7px; }
 }
 /* Заблокированное поле шага тройки — курсор «нельзя». */
 .input-wrap.locked { cursor: not-allowed; }
@@ -534,7 +528,6 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
   align-items: flex-start;
   width: fit-content;
   max-height: 100%;
-  overflow-y: auto;
 }
 .tower-row {
   display: flex;

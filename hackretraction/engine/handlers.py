@@ -342,7 +342,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
                 incoming["startGcode"] = ""
             if incoming.get("endGcode") == old_end:
                 incoming["endGcode"] = ""
-        self._reapply_recommended(incoming)
+        # Без params (например, закрытие окна настроек без изменений) ничего
+        # не пересчитываем: иначе все поля обнулятся (reapply с None).
+        if isinstance(incoming, dict):
+            self._reapply_recommended(incoming)
         self._post(
             {
                 "type": "settings_saved",
