@@ -133,7 +133,9 @@ function collectParams() {
   for (var i = 0; i < inputs.length; i++) {
     var el = inputs[i];
     var key = el.getAttribute("data-param");
-    var raw = el.value.trim();
+    /* Запятая как десятичный разделитель (русская раскладка) → точка,
+       иначе Number("1,5") = NaN и поле очистится. */
+    var raw = el.value.trim().replace(",", ".");
     if (el.tagName === "TEXTAREA" || el.tagName === "textarea") {
       params[key] = el.value;
     } else if (raw !== "") {
