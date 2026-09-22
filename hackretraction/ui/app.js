@@ -516,6 +516,16 @@ function tip(key) {
   return key;
 }
 
+/* Резолв нативных тултипов (title) для элементов с data-title.
+   Вызывается после прихода state.ui (переводы из Python). */
+function resolveTitles() {
+  var tt = document.querySelectorAll("[data-title]");
+  for (var i = 0; i < tt.length; i++) {
+    var tk = tt[i].getAttribute("data-title");
+    if (tk) tt[i].title = tip(tk);
+  }
+}
+
 
 function applyStepLock(params) {
   var active = null;
@@ -639,6 +649,7 @@ function onMessage(msg) {
   switch (msg.type) {
     case "state":
       state.ui = msg.ui;
+      resolveTitles();
       state.params = msg.params || {};
       state.recommended = msg.recommended || {};
       state.settings = msg.settings || {};
@@ -1016,12 +1027,6 @@ function init() {
   bindFileInput();
   bindModals();
   bindSettingsLive();
-  /* Нативные тултипы (title) для кнопок тулбара — резолвим переводы. */
-  var tt = document.querySelectorAll("[data-title]");
-  for (var i =  0; i < tt.length; i++) {
-    var tk = tt[i].getAttribute("data-title");
-    if (tk) tt[i].title = tip(tk);
-  }
   post({ type: "get_state" });
   /* Масштабирование превью при изменении размеров окна (debounce). */
   var resizeTimer = null;
