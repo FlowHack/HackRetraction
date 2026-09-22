@@ -273,7 +273,6 @@ body {
   width: 100%;
   min-width: 0;
   padding: 3px 6px;
-  padding-right: 44px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
@@ -319,7 +318,7 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 /* Единица измерения — справа от поля ввода (вне input, соседний элемент. */
 .unit {
   position: absolute;
-  right: 24px;
+  right: 22px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.72em;
