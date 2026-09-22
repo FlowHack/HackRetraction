@@ -68,6 +68,7 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             {
                 "type": "state",
                 "params": params,
+                "recommended": self.get_recommended(),
                 "settings": self.get_settings(),
                 "has_gcode": self._gcode is not None,
                 "ui": self._ui_bundle(),
@@ -122,6 +123,10 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             return None
         for key in DEFAULT_PARAMS:
             if key in _STRING_PARAM_KEYS:
+                continue
+            # Поля тройки (инкременты) проверяются отдельно в _validate_steps:
+            # они могут быть пустыми (по умолчанию только одно заполнено).
+            if key in _STEP_KEYS:
                 continue
             value = incoming.get(key)
             if value is None or str(value).strip() == "":
@@ -191,6 +196,7 @@ class HandlersMixin(ParamsMixin, ExportMixin):
             {
                 "type": "pulled",
                 "params": params,
+                "recommended": self.get_recommended(),
                 "extruder": result["extruder"],
                 "status": "status.pull_ok",
                 "default_start_gcode": start,
@@ -210,12 +216,14 @@ class HandlersMixin(ParamsMixin, ExportMixin):
         else:
             self.set_start_end_gcode("", "")
         self.set_params(params)
+        self._recommended = self._compute_recommended(result) if result["ok"] else {}
         params = self._fill_gcode_params(self.get_params())
         start, end = self._default_gcode(params)
         self._post(
             {
                 "type": "reset",
                 "params": params,
+                "recommended": self.get_recommended(),
                 "status": "status.reset_ok",
                 "default_start_gcode": start,
                 "default_end_gcode": end,

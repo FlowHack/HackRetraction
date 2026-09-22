@@ -77,7 +77,8 @@ def _side(
     srd = float(params["startRetractiondistance"])
     ird = float(params["incrementRetractiondistance"])
     srs = float(params["startRetractionspeed"])
-    irs = float(params["incrementRetractionspeed"])
+    # Поле тройки может быть пустым (не оно активно) — трактуем как 0.
+    irs = float(params.get("incrementRetractionspeed", 0) or 0)
     speed = (srs + irs * test) * 60
     # Движение печати на 10 мм по move_axis
     if move_axis == "X":
@@ -348,9 +349,9 @@ def _tower_layer(
     """
     lh = float(params["layerHeight"])
     fs = float(params["speedFan"])
-    fsi = float(params["speedFanIncrement"])
+    fsi = float(params.get("speedFanIncrement", 0) or 0)
     tsh = float(params["tempStarthotend"])
-    tih = float(params["tempIncrementhotend"])
+    tih = float(params.get("tempIncrementhotend", 0) or 0)
     corenermarker = _e_value(params, 1)
 
     if layer_in_test == 0:
@@ -416,11 +417,12 @@ def generate_gcode(
     srd = float(params["startRetractiondistance"])
     ird = float(params["incrementRetractiondistance"])
     srs = float(params["startRetractionspeed"])
-    irs = float(params["incrementRetractionspeed"])
+    # Поля тройки могут быть пустыми (по умолчанию) — трактуем как 0.
+    irs = float(params.get("incrementRetractionspeed", 0) or 0)
     tsh = float(params["tempStarthotend"])
-    tih = float(params["tempIncrementhotend"])
+    tih = float(params.get("tempIncrementhotend", 0) or 0)
     fs = float(params["speedFan"])
-    fsi = float(params["speedFanIncrement"])
+    fsi = float(params.get("speedFanIncrement", 0) or 0)
     lh = float(params["layerHeight"])
     ts = float(params["speedTravel"])
     dx = float(params["dimensionX"])

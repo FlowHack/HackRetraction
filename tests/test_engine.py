@@ -23,6 +23,39 @@ def _generate(engine, params=None):
     return messages[-1]
 
 
+def _full_params(**overrides):
+    """DEFAULT_PARAMS с заполненными None-полями (эквивалент pull из профиля).
+
+    После п.9 подтягиваемые поля по умолчанию None — для тестов генерации
+    нужен полный набор значений, как после успешного pull_from_profile.
+    """
+    params = {
+        "startRetractiondistance": 0.5,
+        "incrementRetractiondistance": 0.5,
+        "startRetractionspeed": 10.0,
+        "incrementRetractionspeed": 10.0,
+        "tempStarthotend": 210,
+        "tempIncrementhotend": 0,
+        "tempBed": 50,
+        "speedFan": 40,
+        "speedFanIncrement": 0,
+        "layerHeight": 0.2,
+        "printSpeed": 40.0,
+        "speedTravel": 100.0,
+        "nozzleDiameter": 0.4,
+        "filamentDiameter": 1.75,
+        "extrusionMultiplier": 1.0,
+        "dimensionX": 220,
+        "dimensionY": 220,
+        "layersTest": 25,
+        "NumTests": 15,
+        "startGcode": "",
+        "endGcode": "",
+    }
+    params.update(overrides)
+    return params
+
+
 def test_parse_gcode_roundtrip_en():
     """Сгенерированный gcode (en) парсится обратно в те же параметры."""
     engine = _engine()
@@ -35,7 +68,7 @@ def test_parse_gcode_roundtrip_en():
         "nozzleDiameter": 0.4, "layerHeight": 0.2, "filamentDiameter": 1.75,
         "extrusionMultiplier": 0.97, "layersTest": 25.0, "NumTests": 15.0,
     }
-    params = {**dict(DEFAULT_PARAMS), **overrides}
+    params = _full_params(**overrides)
     msg = _generate(engine, params)
     parsed = parse_gcode(msg["gcode"])
     # parse_gcode возвращает только числовые ключи секции «All inputs»
@@ -47,7 +80,7 @@ def test_parse_gcode_ru_comments():
     """Парсер не зависит от языка комментариев gcode."""
     engine = _engine()
     engine._config["comment_lang"] = "ru"
-    params = {**dict(DEFAULT_PARAMS), "NumTests": 3, "layersTest": 5}
+    params = _full_params(NumTests=3, layersTest=5)
     msg = _generate(engine, params)
     parsed = parse_gcode(msg["gcode"])
     assert parsed["NumTests"] == pytest.approx(3)
@@ -83,7 +116,7 @@ def test_apply_placeholders():
 def test_handle_generate_sets_gcode():
     """После generate движок хранит gcode и отдаёт статистику."""
     engine = _engine()
-    params = {**dict(DEFAULT_PARAMS), "NumTests": 5, "layersTest": 10}
+    params = _full_params(NumTests=5, layersTest=10)
     msg = _generate(engine, params)
     assert msg["type"] == "generated"
     assert msg["stats"]["tests"] == 5
@@ -129,7 +162,7 @@ def test_handle_pull_outside_orca_fails():
 def test_save_gcode(tmp_path):
     """save_gcode пишет файл и возвращает путь."""
     engine = _engine()
-    _generate(engine)
+    _generate(engine, _full_params())
     target = str(tmp_path / "out.gcode")
     saved = engine.save_gcode(target)
     assert saved == target
@@ -240,12 +273,11 @@ def test_recalc_default_gcode():
 def test_generate_uses_edited_gcode():
     """Отредактированный пользователем gcode попадает в генерацию."""
     engine = _engine()
-    params = {
-        **dict(DEFAULT_PARAMS),
-        "NumTests": 3,
-        "layersTest": 5,
-        "startGcode": "G28 ; мой старт",
-    }
+    params = _full_params(
+        NumTests=3,
+        layersTest=5,
+        startGcode="G28 ; мой старт",
+    )
     msg = _generate(engine, params)
     assert "G28 ; мой старт" in msg["gcode"]
 
@@ -294,13 +326,18 @@ def test_extruder_presets_direct():
 
 
 def test_extruder_presets_bowden():
-    """Пресет bowden совпадает с дефолтами генератора."""
-    from hackretraction.constants import DEFAULT_PARAMS, EXTRUDER_PRESETS
+    """Пресет bowden: классические значения втягивания (эталон генератора).
+
+    DEFAULT_PARAMS больше не хранит эти значения (None до подтяжки) —
+    сравниваем с зафиксированными значениями пресета.
+    """
+    from hackretraction.constants import EXTRUDER_PRESETS
 
     preset = EXTRUDER_PRESETS["bowden"]
-    for key in ("startRetractiondistance", "incrementRetractiondistance",
-                "startRetractionspeed", "incrementRetractionspeed"):
-        assert preset[key] == DEFAULT_PARAMS[key], key
+    assert preset["startRetractiondistance"] == 0.5
+    assert preset["incrementRetractiondistance"] == 0.5
+    assert preset["startRetractionspeed"] == 10.0
+    assert preset["incrementRetractionspeed"] == 10.0
 
 
 def test_handle_reset_outside_orca_defaults():
@@ -313,7 +350,8 @@ def test_handle_reset_outside_orca_defaults():
     msg = messages[-1]
     assert msg["type"] == "reset"
     assert msg["params"]["NumTests"] == 15
-    assert msg["params"]["startRetractiondistance"] == 0.5
+    # Подтягиваемое поле вне Orca не подтянулось — остаётся пустым (None).
+    assert msg["params"]["startRetractiondistance"] is None
     assert msg["params"]["startGcode"] == msg["default_start_gcode"]
 
 
@@ -528,3 +566,110 @@ def test_pull_chain_child_overrides_parent(monkeypatch):
     result = engine.pull_from_profile()
     assert result["ok"] is True
     assert result["params"]["printSpeed"] == 45.0
+
+
+# --- Пункты 6-10: None-дефолты, recommended, удаление кнопки pull ---
+
+
+def test_default_params_none_for_pull_fields():
+    """Подтягиваемые поля по умолчанию пусты (None), тестовые — с дефолтами."""
+    assert DEFAULT_PARAMS["layersTest"] == 25
+    assert DEFAULT_PARAMS["NumTests"] == 15
+    assert DEFAULT_PARAMS["startGcode"] == ""
+    assert DEFAULT_PARAMS["endGcode"] == ""
+    for key in (
+        "startRetractiondistance", "incrementRetractiondistance",
+        "startRetractionspeed", "incrementRetractionspeed",
+        "tempStarthotend", "tempIncrementhotend", "tempBed",
+        "speedFan", "speedFanIncrement", "layerHeight", "printSpeed",
+        "speedTravel", "nozzleDiameter", "filamentDiameter",
+        "extrusionMultiplier", "dimensionX", "dimensionY",
+    ):
+        assert DEFAULT_PARAMS[key] is None, key
+
+
+def test_param_steps_fine_increment():
+    """Пункт 6: шаг стрелочек layerHeight/filamentDiameter = 0.01."""
+    from hackretraction.constants import PARAM_STEPS
+
+    assert PARAM_STEPS["layerHeight"] == 0.01
+    assert PARAM_STEPS["filamentDiameter"] == 0.01
+
+
+def test_set_params_empty_numeric_stores_none():
+    """Пустые/None числовые значения сохраняются как None (без warning)."""
+    engine = _engine()
+    engine.set_params({"layerHeight": None, "speedTravel": "", "tempBed": 80})
+    params = engine.get_params()
+    assert params["layerHeight"] is None
+    assert params["speedTravel"] is None
+    assert params["tempBed"] == 80.0
+
+
+def test_get_state_includes_recommended():
+    """Пункт 7: state содержит рекомендуемые значения (для кнопок сброса)."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "get_state"})
+    msg = messages[-1]
+    assert msg["type"] == "state"
+    assert "recommended" in msg
+    assert isinstance(msg["recommended"], dict)
+
+
+def test_handle_reset_includes_recommended():
+    """Пункт 7: reset содержит рекомендуемые значения."""
+    engine = _engine()
+    messages = []
+    engine.set_post_sink(messages.append)
+    engine.handle_message({"type": "reset"})
+    msg = messages[-1]
+    assert msg["type"] == "reset"
+    assert "recommended" in msg
+    assert isinstance(msg["recommended"], dict)
+
+
+def test_recommended_after_pull(monkeypatch):
+    """Пункт 7: recommended = подтянутые параметры + пресет экструдера."""
+    params_mod, fake = _fake_orca(
+        {
+            "nozzle_diameter": _FakeValue(0.4),
+            "printable_area": ["0x0", "325x0", "325x325", "0x325"],
+            "extruder_type": "Direct Drive",
+        }
+    )
+    monkeypatch.setattr(params_mod, "orca", fake)
+    engine = _engine()
+    rec = engine.get_recommended()
+    # пресет direct поверх подтянутого
+    assert rec["startRetractiondistance"] == 1.0
+    assert rec["incrementRetractiondistance"] == 0.1
+    assert rec["dimensionX"] == 325.0
+
+
+def test_ui_has_no_pull_button():
+    """Пункт 8: кнопка «Подтянуть параметры» удалена из HTML и JS."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "hackretraction" / "ui"
+    html = (root / "index.html").read_text(encoding="utf-8")
+    js = (root / "app.js").read_text(encoding="utf-8")
+    assert 'id="btn-pull"' not in html
+    assert '"btn-pull"' not in js
+
+
+def test_generate_tolerates_empty_step_triple():
+    """Пункт 5 самопроверки: генерация не падает на пустых полях тройки.
+
+    Два из трёх полей тройки пусты (None) — генератор трактует их как 0,
+    валидация их не блокирует (проверяет только _validate_steps).
+    """
+    engine = _engine()
+    params = _full_params(
+        incrementRetractionspeed=2.0,
+        tempIncrementhotend=None,
+        speedFanIncrement=None,
+    )
+    msg = _generate(engine, params)
+    assert msg["type"] == "generated"

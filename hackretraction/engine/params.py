@@ -55,21 +55,36 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 # Точечная подстановка плейсхолдеров OrcaSlicer из параметров.
+# Лямбды возвращают None, если параметр не подтянут (None/отсутствует) —
+# такой плейсхолдер остаётся в gcode как есть (см. apply_placeholders).
 _PLACEHOLDER_FUNCS: Dict[str, Any] = {
-    "[bed_temperature_initial_layer_single]": lambda p: p["tempBed"],
-    "[nozzle_temperature_initial_layer]": lambda p: p["tempStarthotend"],
-    "{print_bed_max[0]*0.5-50}": lambda p: p["dimensionX"] * 0.5 - 50,
-    "{print_bed_max[0]*0.5+50}": lambda p: p["dimensionX"] * 0.5 + 50,
-    "{print_bed_max[0]*0.5+47}": lambda p: p["dimensionX"] * 0.5 + 47,
-    "{print_bed_max[1]}": lambda p: p["dimensionY"],
+    "[bed_temperature_initial_layer_single]": lambda p: p.get("tempBed"),
+    "[nozzle_temperature_initial_layer]": lambda p: p.get("tempStarthotend"),
+    "{print_bed_max[0]*0.5-50}": lambda p: (
+        p["dimensionX"] * 0.5 - 50 if p.get("dimensionX") is not None else None
+    ),
+    "{print_bed_max[0]*0.5+50}": lambda p: (
+        p["dimensionX"] * 0.5 + 50 if p.get("dimensionX") is not None else None
+    ),
+    "{print_bed_max[0]*0.5+47}": lambda p: (
+        p["dimensionX"] * 0.5 + 47 if p.get("dimensionX") is not None else None
+    ),
+    "{print_bed_max[1]}": lambda p: p.get("dimensionY"),
 }
 
 
 def apply_placeholders(gcode: str, params: Dict[str, float]) -> str:
-    """Подставляет плейсхолдеры OrcaSlicer из параметров в gcode принтера."""
+    """Подставляет плейсхолдеры OrcaSlicer из параметров в gcode принтера.
+
+    Если параметр для плейсхолдера не подтянут (None) — плейсхолдер
+    остаётся в тексте как есть, чтобы пользователь видел незаполненность.
+    """
     for placeholder, func in _PLACEHOLDER_FUNCS.items():
         if placeholder in gcode:
-            gcode = gcode.replace(placeholder, _fmt_val(float(func(params))))
+            value = func(params)
+            if value is None:
+                continue
+            gcode = gcode.replace(placeholder, _fmt_val(float(value)))
     return gcode
 
 
@@ -342,6 +357,20 @@ class ParamsMixin(CoreMixin):
         if preset:
             params.update(preset)
 
+    def _compute_recommended(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Собирает «рекомендуемый» набор значений из результата подтяжки.
+
+        Рекомендуемое = подтянутые из профиля параметры + пресет экструдера
+        (стартовые втягивания/скорости для bowden/direct). Это эталон для
+        кнопок сброса числовых полей в UI.
+        """
+        rec: Dict[str, Any] = dict(result["params"])
+        extruder = result["extruder"]
+        preset = EXTRUDER_PRESETS.get(extruder)
+        if preset:
+            rec.update(preset)
+        return rec
+
     def _apply_pull_result(self, result: Dict[str, Any]) -> None:
         """Применяет результат pull_from_profile к состоянию движка.
 
@@ -353,6 +382,7 @@ class ParamsMixin(CoreMixin):
         self.apply_extruder_presets(params, result["extruder"])
         self.set_params(params)
         self.set_start_end_gcode(result["start_gcode"], result["end_gcode"])
+        self._recommended = self._compute_recommended(result)
 
     def _auto_pull(self) -> None:
         """Подтягивает параметры из профиля при старте плагина.

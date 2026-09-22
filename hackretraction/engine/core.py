@@ -32,6 +32,7 @@ class CoreMixin:
         self._config: Dict[str, Any] = {}
         self._config_loaded = False
         self._params: Dict[str, Any] = dict(DEFAULT_PARAMS)
+        self._recommended: Dict[str, Any] = {}
         self._start_gcode = ""
         self._end_gcode = ""
         self._gcode: Optional[str] = None
@@ -118,18 +119,34 @@ class CoreMixin:
     def get_params(self) -> Dict[str, Any]:
         return dict(self._params)
 
+    def get_recommended(self) -> Dict[str, Any]:
+        """Рекомендуемые значения (подтянутые/рассчитанные) для кнопок сброса.
+
+        Набор «рекомендуемого» отделён от текущих _params: пользователь может
+        менять поля, а рекомендуемые значения остаются эталоном для кнопки
+        сброса каждого числового поля.
+        """
+        return dict(self._recommended)
+
     def set_params(self, params: Dict[str, Any]) -> None:
-        """Обновляет параметры (числовые — float, строковые — str)."""
+        """Обновляет параметры (числовые — float, строковые — str).
+
+        Пустые/None числовые значения сохраняются как None (поле не заполнено),
+        а не роняются с warning — пустота легитимна до подтяжки из профиля.
+        """
         for key, value in params.items():
             if key not in DEFAULT_PARAMS:
                 continue
             if key in _STRING_PARAM_KEYS:
-                self._params[key] = str(value)
+                self._params[key] = str(value) if value is not None else ""
             else:
-                try:
-                    self._params[key] = float(value)
-                except (TypeError, ValueError):
-                    _LOGGER.warning("Некорректное значение параметра %s: %r", key, value)
+                if value is None or str(value).strip() == "":
+                    self._params[key] = None
+                else:
+                    try:
+                        self._params[key] = float(value)
+                    except (TypeError, ValueError):
+                        _LOGGER.warning("Некорректное значение параметра %s: %r", key, value)
 
     def reset_params(self) -> None:
         self._params = dict(DEFAULT_PARAMS)

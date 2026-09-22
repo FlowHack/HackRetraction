@@ -1,30 +1,33 @@
 """Константы плагина HackRetraction: дефолты параметров, ключи профиля, лимиты."""
 
 # Дефолтные параметры генератора (единый источник для UI и генерации).
-# Значения — из оригинального генератора (fork/), адаптированы под OrcaSlicer.
-DEFAULT_PARAMS: dict[str, float | int | str] = {
+# Подтягиваемые/рассчитываемые поля по умолчанию ПУСТЫЕ (None): значение
+# приходит из профиля принтера (pull_from_profile) или пресета экструдера.
+# Если подтянуть не удалось — поле остаётся пустым, генерация заблокирована
+# валидацией до тех пор, пока пользователь не заполнит его вручную.
+DEFAULT_PARAMS: dict[str, float | int | str | None] = {
     # Ретракция
-    "startRetractiondistance": 0.5,  # стартовое втягивание, мм
-    "incrementRetractiondistance": 0.5,  # шаг втягивания, мм
-    "startRetractionspeed": 10.0,  # стартовая скорость втягивания, мм/с
-    "incrementRetractionspeed": 10.0,  # шаг скорости втягивания, мм/с
+    "startRetractiondistance": None,  # стартовое втягивание, мм (подтягивается)
+    "incrementRetractiondistance": None,  # шаг втягивания, мм (подтягивается)
+    "startRetractionspeed": None,  # стартовая скорость втягивания, мм/с (подтягивается)
+    "incrementRetractionspeed": None,  # шаг скорости втягивания, мм/с (подтягивается)
     # Температура
-    "tempStarthotend": 210,  # стартовая температура хотэнда, °C
-    "tempIncrementhotend": 0,  # шаг температуры хотэнда, °C
-    "tempBed": 50,  # температура стола, °C
+    "tempStarthotend": None,  # стартовая температура хотэнда, °C (подтягивается)
+    "tempIncrementhotend": None,  # шаг температуры хотэнда, °C
+    "tempBed": None,  # температура стола, °C (подтягивается)
     # Обдув
-    "speedFan": 40,  # скорость вентилятора, %
-    "speedFanIncrement": 0,  # шаг обдува, %
+    "speedFan": None,  # скорость вентилятора, % (подтягивается)
+    "speedFanIncrement": None,  # шаг обдува, %
     # Печать
-    "layerHeight": 0.2,  # высота слоя, мм
-    "printSpeed": 40.0,  # скорость печати, мм/с
-    "speedTravel": 100.0,  # скорость перемещения, мм/с
-    "nozzleDiameter": 0.4,  # диаметр сопла, мм
-    "filamentDiameter": 1.75,  # диаметр филамента, мм
-    "extrusionMultiplier": 1.0,  # коэффициент потока
+    "layerHeight": None,  # высота слоя, мм (подтягивается)
+    "printSpeed": None,  # скорость печати, мм/с (подтягивается)
+    "speedTravel": None,  # скорость перемещения, мм/с (подтягивается)
+    "nozzleDiameter": None,  # диаметр сопла, мм (подтягивается)
+    "filamentDiameter": None,  # диаметр филамента, мм
+    "extrusionMultiplier": None,  # коэффициент потока (подтягивается)
     # Стол и тест
-    "dimensionX": 220,  # ширина стола, мм
-    "dimensionY": 220,  # глубина стола, мм
+    "dimensionX": None,  # ширина стола, мм (подтягивается)
+    "dimensionY": None,  # глубина стола, мм (подтягивается)
     "layersTest": 25,  # слоёв на тест
     "NumTests": 15,  # количество тестов
     # Стартовый/конечный gcode принтера (редактируемые поля UI).
@@ -164,9 +167,9 @@ DEFAULT_GCODE_FILENAME = "retraction_calibration.gcode"
 PARAM_STEPS: dict[str, float] = {
     "startRetractiondistance": 0.1,
     "incrementRetractiondistance": 0.1,
-    "layerHeight": 0.1,
+    "layerHeight": 0.01,
     "nozzleDiameter": 0.1,
-    "filamentDiameter": 0.1,
+    "filamentDiameter": 0.01,
     "extrusionMultiplier": 0.01,
 }
 

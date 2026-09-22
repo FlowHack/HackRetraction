@@ -245,10 +245,11 @@ body {
 .sec-body { padding: 6px 10px; }
 .sec.collapsed .sec-body { display: none; }
 
-/* Ровная сетка: label | input — единицы внутри поля (суффикс). */
+/* Ровная сетка: label | input | reset — единицы внутри поля (суффикс).
+   Третья колонка — кнопка сброса к рекомендуемому (при display:none схлопывается). */
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
@@ -326,6 +327,27 @@ body[data-theme="light"] .input-wrap input[type="number"] { color-scheme: light;
 @-moz-document url-prefix() {
   .input-wrap .unit { right: 7px; }
 }
+/* Заблокированное поле шага тройки — курсор «нельзя». */
+.input-wrap.locked { cursor: not-allowed; }
+/* Кнопка сброса числового поля к рекомендуемому значению (⟳).
+   Видна только когда текущее значение отличается от рекомендуемого. */
+.btn-reset-param {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.95em;
+  line-height: 1;
+}
+.btn-reset-param.visible { display: inline-flex; }
+.btn-reset-param:hover { border-color: var(--accent); color: var(--accent); }
 .field textarea {
   grid-column: 1 / -1;
   width: 100%;

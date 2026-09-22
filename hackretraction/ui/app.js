@@ -65,7 +65,8 @@ function buildForm(ui, params) {
       var tip = ui.tips["t." + key] || "";
       var unit = ui.units[key] || "";
       var type = ui.types[key] || "number";
-      var value = params[key] !== undefined ? params[key] : "";
+      /* None (не подтянуто) → пустое поле, а не "null". */
+      var value = params[key] !== undefined && params[key] !== null ? params[key] : "";
       html += '<div class="field">';
       html += '<label title="' + esc(label) + '">' + esc(label) + "</label>";
       if (tip) {
@@ -93,6 +94,9 @@ function buildForm(ui, params) {
           html += '<span class="unit">' + esc(unit) + "</span>";
         }
         html += "</span>";
+        /* Кнопка сброса к рекомендуемому значению (видна при отличии). */
+        html += '<button type="button" class="btn-reset-param" data-reset-param="' +
+          key + '" data-tip="t.reset_param">&#10263;</button>';
       }
       html += "</div>";
     }
@@ -102,8 +106,11 @@ function buildForm(ui, params) {
   bindSections();
   bindLivePreview();
   bindTips();
+  bindStepLockTips();
   bindDefaultGcodeButtons();
   applyStepLock(params);
+  bindResetParamButtons();
+  updateResetButtons();
 }
 
 function esc(s) {
@@ -125,6 +132,10 @@ function collectParams() {
       params[key] = el.value;
     } else if (raw !== "") {
       params[key] = Number(raw);
+    } else if (STEP_KEYS.indexOf(key) >= 0) {
+      /* Поля тройки всегда присутствуют: пустое → 0, иначе Python сохранит
+         устаревшее значение из прошлой генерации (валидация пропускает их). */
+      params[key] = 0;
     }
   }
   return params;
@@ -152,6 +163,42 @@ function clearFieldError(key) {
   if (field) field.classList.remove("field-error");
 }
 
+/* --- Кнопки сброса числовых полей к рекомендуемым значениям --- */
+function updateResetButtons() {
+  var rec = state.recommended || {};
+  var inputs = document.querySelectorAll("[data-param]");
+  for (var i = 0; i < inputs.length; i++) {
+    var el = inputs[i];
+    if (el.tagName === "TEXTAREA" || el.tagName === "textarea") continue;
+    var key = el.getAttribute("data-param");
+    /* Кнопка — сосед .input-wrap в .field (label | tip/wrap | button). */
+    var field = el.closest ? el.closest(".field") : el.parentElement.parentElement;
+    var btn = field ? field.querySelector(".btn-reset-param") : null;
+    if (!btn) continue;
+    var rv = rec[key];
+    var show = rv !== undefined && num(el.value, NaN) !== num(rv, NaN);
+    btn.classList.toggle("visible", show);
+  }
+}
+
+function bindResetParamButtons() {
+  var btns = document.querySelectorAll(".btn-reset-param");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      var key = this.getAttribute("data-reset-param");
+      var rv = (state.recommended || {})[key];
+      var el = document.querySelector('[data-param="' + key + '"]');
+      if (rv === undefined || !el) return;
+      el.value = rv;
+      state.params[key] = rv;
+      updateResetButtons();
+      applyStepLock(state.params);
+      renderPreview(state.params);
+      clearFieldError(key);
+    });
+  }
+}
+
 function validateNumericFields() {
   var empty = [];
   var inputs = document.querySelectorAll("[data-param]");
@@ -160,8 +207,11 @@ function validateNumericFields() {
     /* Текстовые поля gcode и заблокированные поля пропускаем. */
     if (el.tagName === "TEXTAREA" || el.tagName === "textarea") continue;
     if (el.disabled) continue;
+    var key = el.getAttribute("data-param");
+    /* Поля тройки могут быть пустыми — их проверяет _validate_steps
+       (ровно одно из трёх должно быть ненулевым). */
+    if (STEP_KEYS.indexOf(key) >= 0) continue;
     if (el.value.trim() === "") {
-      var key = el.getAttribute("data-param");
       empty.push({ key: key, label: fieldLabel(key) });
     }
   }
@@ -186,7 +236,8 @@ function setFormValues(params) {
     var el = inputs[i];
     var key = el.getAttribute("data-param");
     if (params[key] !== undefined) {
-      el.value = params[key];
+      /* None → очистить поле (значение не подтянуто/сброшено). */
+      el.value = params[key] === null ? "" : params[key];
     }
   }
 }
@@ -200,6 +251,7 @@ function bindLivePreview() {
       clearFieldError(this.getAttribute("data-param"));
       var params = collectParams();
       applyStepLock(params);
+      updateResetButtons();
       renderPreview(params);
       /* Пересчёт дефолтных gcode при смене размеров стола — только если
          поле gcode не редактировалось пользователем (равно дефолту). */
@@ -261,6 +313,8 @@ function showTip(e) {
   if (!box) return;
   /* data-tip может содержать ключ перевода (t.*) — резолвим в текст. */
   var key = tip.getAttribute("data-tip") || "";
+  /* Пустой data-tip (незаблокированное поле тройки) — тултип не показываем. */
+  if (!key) return;
   box.textContent = key.indexOf("t.") === 0 ? tip(key) : key;
   var r = tip.getBoundingClientRect();
   var left = r.right + 8;
@@ -407,6 +461,18 @@ function tip(key) {
   return key;
 }
 
+/* Тултип при наведении на САМО поле тройки (не только на «вопросике»):
+   объясняет, что заполнено может быть только одно из трёх полей. */
+function bindStepLockTips() {
+  for (var i = 0; i < STEP_KEYS.length; i++) {
+    var input = document.querySelector('[data-param="' + STEP_KEYS[i] + '"]');
+    if (!input) continue;
+    var wrap = input.parentElement; /* .input-wrap */
+    wrap.addEventListener("mouseenter", showTip);
+    wrap.addEventListener("mouseleave", hideTip);
+  }
+}
+
 function applyStepLock(params) {
   var active = null;
   for (var i = 0; i < STEP_KEYS.length; i++) {
@@ -442,6 +508,15 @@ function applyStepLock(params) {
         tipEl.setAttribute("data-tip", tip("t." + key));
         tipEl.classList.remove("locked");
       }
+    }
+    /* Тултип и визуал на самом поле (.input-wrap) при блокировке. */
+    var wrap = input.parentElement; /* .input-wrap */
+    if (locked) {
+      wrap.setAttribute("data-tip", tip("t.step_locked"));
+      wrap.classList.add("locked");
+    } else {
+      wrap.removeAttribute("data-tip");
+      wrap.classList.remove("locked");
     }
   }
 }
@@ -521,6 +596,7 @@ function onMessage(msg) {
     case "state":
       state.ui = msg.ui;
       state.params = msg.params || {};
+      state.recommended = msg.recommended || {};
       state.settings = msg.settings || {};
       state.defaultStartGcode = msg.default_start_gcode || "";
       state.defaultEndGcode = msg.default_end_gcode || "";
@@ -544,19 +620,23 @@ function onMessage(msg) {
       break;
     case "pulled":
       state.params = msg.params || {};
+      state.recommended = msg.recommended || {};
       state.defaultStartGcode = msg.default_start_gcode || "";
       state.defaultEndGcode = msg.default_end_gcode || "";
       setFormValues(state.params);
       applyStepLock(state.params);
+      updateResetButtons();
       renderPreview(state.params);
       showToast(msg.status || "status.pull_ok");
       break;
     case "reset":
       state.params = msg.params || {};
+      state.recommended = msg.recommended || {};
       state.defaultStartGcode = msg.default_start_gcode || "";
       state.defaultEndGcode = msg.default_end_gcode || "";
       setFormValues(state.params);
       applyStepLock(state.params);
+      updateResetButtons();
       renderPreview(state.params);
       showToast(msg.status || "status.reset_ok");
       break;
@@ -581,6 +661,7 @@ function onMessage(msg) {
       state.params = msg.params || {};
       setFormValues(state.params);
       applyStepLock(state.params);
+      updateResetButtons();
       renderPreview(state.params);
       showToast("status.loaded");
       break;
@@ -644,7 +725,6 @@ function closeGenerateMenu(e) {
 function bindToolbar() {
   var map = {
     "btn-help": function () { openHelp(); },
-    "btn-pull": function () { post({ type: "pull" }); },
     "btn-reset": function () { post({ type: "reset" }); },
     "btn-generate": function () { toggleGenerateMenu(); },
     "gen-copy": function () {
